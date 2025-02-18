@@ -37,6 +37,7 @@ use crate::engine::SolverStatistics;
 use crate::engine::TrailedAssignments;
 use crate::predicate;
 use crate::propagators::nogoods::Nogood;
+use crate::propagators::BoundDomain;
 use crate::pumpkin_assert_advanced;
 use crate::pumpkin_assert_moderate;
 use crate::pumpkin_assert_simple;
@@ -278,61 +279,6 @@ impl NogoodPropagator {
             }
         }
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-struct BoundDomain {
-    lower_bound: i32,
-    upper_bound: i32,
-    processing_time: u32,
-}
-
-impl BoundDomain {
-    fn new(lower_bound: i32, upper_bound: i32, processing_time: u32) -> Self {
-        Self {
-            lower_bound,
-            upper_bound,
-            processing_time,
-        }
-    }
-
-    fn apply_predicate(&self, predicate: Predicate) -> Self {
-        let mut result = self.clone();
-        match predicate {
-            Predicate::LowerBound {
-                domain_id: _,
-                lower_bound,
-            } => result.lower_bound = self.lower_bound.max(lower_bound),
-            Predicate::UpperBound {
-                domain_id: _,
-                upper_bound,
-            } => result.upper_bound = self.upper_bound.min(upper_bound),
-            Predicate::NotEqual {
-                domain_id: _,
-                not_equal_constant,
-            } => {
-                if not_equal_constant == self.lower_bound {
-                    result.lower_bound += 1
-                }
-                if not_equal_constant == self.upper_bound {
-                    result.upper_bound -= 1
-                }
-            }
-            Predicate::Equal {
-                domain_id: _,
-                equality_constant,
-            } => {
-                result.lower_bound = equality_constant;
-                result.upper_bound = equality_constant
-            }
-        }
-        result
-    }
-
-    fn overlaps_with(&self, other: &Self) -> bool {
-        self.lower_bound <= other.upper_bound + other.processing_time as i32
-            && other.lower_bound <= self.upper_bound + self.processing_time as i32
     }
 }
 

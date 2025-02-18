@@ -3,6 +3,7 @@ use std::rc::Rc;
 use itertools::Itertools;
 use log::info;
 
+use super::ResourceProfile;
 use crate::basic_types::moving_averages::CumulativeMovingAverage;
 use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::PropagationStatusCP;
@@ -10,6 +11,7 @@ use crate::conjunction;
 use crate::containers::KeyedVec;
 use crate::create_statistics_struct;
 use crate::engine::propagation::LocalId;
+use crate::engine::propagation::PropagationContext;
 use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
@@ -17,6 +19,7 @@ use crate::engine::propagation::ReadDomains;
 use crate::engine::DomainEvents;
 use crate::engine::EmptyDomain;
 use crate::predicate;
+use crate::predicates::Predicate;
 use crate::predicates::PropositionalConjunction;
 use crate::propagators::util::create_tasks;
 use crate::propagators::ArgTask;
@@ -26,6 +29,124 @@ use crate::statistics::Statistic;
 use crate::statistics::StatisticLogger;
 use crate::variables::IntegerVariable;
 use crate::variables::Literal;
+
+#[derive(Debug, Clone)]
+pub(crate) struct BoundDomain {
+    lower_bound: i32,
+    upper_bound: i32,
+    processing_time: u32,
+}
+
+impl BoundDomain {
+    pub(crate) fn new(lower_bound: i32, upper_bound: i32, processing_time: u32) -> Self {
+        Self {
+            lower_bound,
+            upper_bound,
+            processing_time,
+        }
+    }
+
+    pub(crate) fn get_explanation_for_overlap_cumulative<Var: IntegerVariable + 'static>(
+        &self,
+        self_var: Var,
+        other: &Self,
+        other_var: Var,
+        first_profile: &ResourceProfile<Var>,
+        last_profile: &ResourceProfile<Var>,
+    ) -> PropositionalConjunction {
+        if self.lower_bound > other.lower_bound {
+            other.get_explanation_for_overlap_cumulative(
+                other_var,
+                self,
+                self_var,
+                first_profile,
+                last_profile,
+            )
+        } else {
+            pumpkin_assert_simple!(self.overlaps_with(other));
+            pumpkin_assert_simple!(
+                self.upper_bound + self.processing_time as i32 > other.lower_bound
+            );
+            // We know that `self.lower_bound` <= other.lower_bound
+            //
+            // There are 2 cases:
+            // 1. The overlap ends before the end of `other`
+            // 2. The overlap ends after the end of `other` (i.e. `self` fully subsumes other)
+            if self.upper_bound + self.processing_time as i32
+                >= other.upper_bound + other.processing_time as i32
+            {
+                // We have the case where `self` fully subsumes `other`
+                //
+                // This can only occur (currently) when performing disjointness mining via the
+                // cumulative
+                //
+                // It does not matter what the value of `self` is and we lift the explanaton of
+                // other to be contained in the interval [first_profile.start, last_profile.end]
+                pumpkin_assert_simple!(
+                    last_profile.end - other.processing_time as i32 + 1 >= other.upper_bound,
+                    "{} - {}",
+                    last_profile.end - other.processing_time as i32,
+                    other.upper_bound
+                );
+                conjunction!(
+                    [other_var >= first_profile.start]
+                        & [other_var <= last_profile.end - other.processing_time as i32 + 1]
+                )
+            } else {
+                // We have the case where `self` starts before `other` but ends before `other` ends
+                //
+                // We lift the explanation such that the overlap is in the interval
+                // [first_profile.start, last_profile.end]
+                pumpkin_assert_simple!(
+                    last_profile.end - self.processing_time as i32 + 1 >= self.upper_bound
+                );
+                pumpkin_assert_simple!(first_profile.start <= other.lower_bound);
+                conjunction!(
+                    [self_var <= last_profile.end - self.processing_time as i32 + 1]
+                        & [other_var >= first_profile.start]
+                )
+            }
+        }
+    }
+
+    pub(crate) fn apply_predicate(&self, predicate: Predicate) -> Self {
+        let mut result = self.clone();
+        match predicate {
+            Predicate::LowerBound {
+                domain_id: _,
+                lower_bound,
+            } => result.lower_bound = self.lower_bound.max(lower_bound),
+            Predicate::UpperBound {
+                domain_id: _,
+                upper_bound,
+            } => result.upper_bound = self.upper_bound.min(upper_bound),
+            Predicate::NotEqual {
+                domain_id: _,
+                not_equal_constant,
+            } => {
+                if not_equal_constant == self.lower_bound {
+                    result.lower_bound += 1
+                }
+                if not_equal_constant == self.upper_bound {
+                    result.upper_bound -= 1
+                }
+            }
+            Predicate::Equal {
+                domain_id: _,
+                equality_constant,
+            } => {
+                result.lower_bound = equality_constant;
+                result.upper_bound = equality_constant
+            }
+        }
+        result
+    }
+
+    pub(crate) fn overlaps_with(&self, other: &Self) -> bool {
+        self.lower_bound <= other.upper_bound + other.processing_time as i32
+            && other.lower_bound <= self.upper_bound + self.processing_time as i32
+    }
+}
 
 create_statistics_struct!(NodePackingStatistics {
     n_calls: usize,

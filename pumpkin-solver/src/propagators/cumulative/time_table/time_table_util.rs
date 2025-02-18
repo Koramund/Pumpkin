@@ -21,6 +21,7 @@ use crate::engine::propagation::ReadDomains;
 use crate::engine::variables::IntegerVariable;
 use crate::propagators::cumulative::time_table::explanations::big_step::create_big_step_explanation;
 use crate::propagators::cumulative::time_table::propagation_handler::CumulativePropagationHandler;
+use crate::propagators::BoundDomain;
 use crate::propagators::CumulativeParameters;
 use crate::propagators::ResourceProfile;
 use crate::propagators::Task;
@@ -28,6 +29,7 @@ use crate::propagators::UpdatableStructures;
 use crate::propagators::UpdatedTaskInfo;
 use crate::pumpkin_assert_extreme;
 use crate::pumpkin_assert_moderate;
+use crate::pumpkin_assert_simple;
 
 /// The result of [`should_enqueue`], contains the [`EnqueueDecision`] whether the propagator should
 /// currently be enqueued and potentially the updated [`Task`] (in the form of a
@@ -398,11 +400,20 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                         let ub_x = context.upper_bound(&task.start_variable);
                         let lb_y = context.lower_bound(&other_task.start_variable);
                         let ub_y = context.upper_bound(&other_task.start_variable);
-                        let mut explanation = conjunction!(
-                            [task.start_variable >= lb_x]
-                                & [task.start_variable <= ub_x]
-                                & [other_task.start_variable >= lb_y]
-                                & [other_task.start_variable <= ub_y]
+
+                        let bound_domain =
+                            BoundDomain::new(lb_x, ub_x, task.processing_time as u32);
+                        let other_bound_domain =
+                            BoundDomain::new(lb_y, ub_y, other_task.processing_time as u32);
+
+                        pumpkin_assert_simple!(bound_domain.overlaps_with(&other_bound_domain));
+
+                        let mut explanation = bound_domain.get_explanation_for_overlap_cumulative(
+                            task.start_variable.clone(),
+                            &other_bound_domain,
+                            other_task.start_variable.clone(),
+                            &time_table[*profiles_contributing_to_disjointness.first().unwrap()],
+                            &time_table[*profiles_contributing_to_disjointness.last().unwrap()],
                         );
 
                         let len_before = explanation.len();
