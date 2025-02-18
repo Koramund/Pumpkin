@@ -65,17 +65,24 @@ impl SemanticMinimiser {
                     self.domains[domain_id].upper_bound =
                         self.domains[domain_id].upper_bound.max(upper_bound);
                 }
-                Predicate::NotEqual {
+                predicate @ Predicate::NotEqual {
                     domain_id: _,
                     not_equal_constant: _,
+                } => self.helper.push(predicate),
+                predicate @ Predicate::Equal {
+                    domain_id,
+                    equality_constant,
                 } => {
-                    unreachable!()
-                }
-                Predicate::Equal {
-                    domain_id: _,
-                    equality_constant: _,
-                } => {
-                    unreachable!()
+                    // Sanity check, not all inclusive
+                    pumpkin_assert_simple!(
+                        self.domains[domain_id].upper_bound == i32::MIN
+                            || equality_constant <= self.domains[domain_id].upper_bound,
+                    );
+                    pumpkin_assert_simple!(
+                        self.domains[domain_id].lower_bound == i32::MAX
+                            || equality_constant >= self.domains[domain_id].lower_bound
+                    );
+                    self.helper.push(predicate)
                 }
             }
         }

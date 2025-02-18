@@ -51,6 +51,9 @@ create_statistics_struct!(NogoodStatistics {
     average_num_low_lbd: CumulativeMovingAverage<u64>,
     average_num_high_lbd: CumulativeMovingAverage<u64>,
     found_disjointness: usize,
+
+    average_explanation_size_disjointness: CumulativeMovingAverage<usize>,
+    average_number_of_predicates_removed_maximising: CumulativeMovingAverage<usize>
 });
 
 /// A propagator which propagates nogoods (i.e. a list of [`Predicate`]s which cannot all be true
@@ -241,31 +244,36 @@ impl NogoodPropagator {
                                 .apply_predicate(unassigned_predicates[1])
                                 .overlaps_with(&task_range)
                         {
-                            info!(
-                                "{unassigned_predicates:?} - Var {}: {}, {} - Var {}: {}, {}",
-                                first_domain,
-                                context.lower_bound(&first_domain),
-                                context.upper_bound(&first_domain),
-                                second_domain,
-                                context.lower_bound(&second_domain),
-                                context.upper_bound(&second_domain)
-                            );
                             statistics.found_disjointness += 1;
-                            let explanation: PropositionalConjunction = nogood_predicates
-                                .iter()
-                                .filter(|predicate| context.is_predicate_satisfied(**predicate))
-                                .cloned()
-                                .chain([
-                                    predicate!(first_domain >= context.lower_bound(&first_domain)),
-                                    predicate!(first_domain <= context.upper_bound(&first_domain)),
-                                    predicate!(
-                                        second_domain >= context.lower_bound(&second_domain)
-                                    ),
-                                    predicate!(
-                                        second_domain <= context.upper_bound(&second_domain)
-                                    ),
-                                ])
-                                .collect();
+                            let mut explanation = task_range.get_explanation_for_overlap_nogood(
+                                &other_task_range,
+                                unassigned_predicates[0],
+                                unassigned_predicates[1],
+                            );
+                            explanation.extend(
+                                nogood_predicates
+                                    .iter()
+                                    .filter(|predicate| context.is_predicate_satisfied(**predicate))
+                                    .cloned(),
+                            );
+
+                            let size_before = explanation.len();
+                            let explanation: PropositionalConjunction = context
+                                .semantic_minimiser
+                                .maximise(
+                                    &mut explanation.predicates_in_conjunction,
+                                    context.assignments,
+                                )
+                                .into();
+                            statistics
+                                .average_number_of_predicates_removed_maximising
+                                .add_term(size_before - explanation.len());
+                            statistics
+                                .average_explanation_size_disjointness
+                                .add_term(explanation.len());
+                            info!(
+                                "{unassigned_predicates:?} - Var {first_domain:?}: {task_range:?} - Var {second_domain}: {other_task_range:?} - Explanation: {explanation:?}",
+                             );
                             context.assign_literal(
                                 &incompatability_matrix
                                     [mapping[unassigned_predicates[0].get_domain()]]

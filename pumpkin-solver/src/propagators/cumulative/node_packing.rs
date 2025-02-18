@@ -109,6 +109,218 @@ impl BoundDomain {
         }
     }
 
+    pub(crate) fn get_explanation_for_overlap_nogood(
+        &self,
+        other: &Self,
+        self_predicate: Predicate,
+        other_predicate: Predicate,
+    ) -> PropositionalConjunction {
+        pumpkin_assert_simple!(self_predicate.get_domain() != other_predicate.get_domain());
+        if self.lower_bound > other.lower_bound {
+            other.get_explanation_for_overlap_nogood(self, other_predicate, self_predicate)
+        } else {
+            pumpkin_assert_simple!(self.overlaps_with(other));
+            // We know that `self.lower_bound` <= other.lower_bound
+            //
+            // There are 2 cases:
+            // 1. The overlap ends before the end of `other`
+            // 2. The overlap ends after the end of `other` (i.e. `self` fully subsumes other)
+            if self.upper_bound + self.processing_time as i32
+                >= other.upper_bound + other.processing_time as i32
+            {
+                // We have the case where `self` fully subsumes `other`
+                //
+                // This can only occur (currently) when performing disjointness mining via the
+                // cumulative
+                unreachable!()
+            } else {
+                // We have the case where `self` starts before `other` but ends before `other` ends
+                match (self_predicate, other_predicate) {
+                    (
+                        Predicate::UpperBound {
+                            domain_id,
+                            upper_bound,
+                        },
+                        Predicate::LowerBound {
+                            domain_id: other_domain_id,
+                            lower_bound,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= upper_bound + 1);
+                        pumpkin_assert_simple!(
+                            self.upper_bound <= lower_bound - self.processing_time as i32
+                        );
+                        conjunction!(
+                            [other_domain_id >= upper_bound + 1]
+                                & [domain_id <= lower_bound - self.processing_time as i32]
+                        )
+                    }
+                    (
+                        Predicate::UpperBound {
+                            domain_id,
+                            upper_bound,
+                        },
+                        Predicate::NotEqual {
+                            domain_id: other_domain_id,
+                            not_equal_constant,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= upper_bound + 1);
+                        pumpkin_assert_simple!(
+                            self.upper_bound
+                                <= not_equal_constant - self.processing_time as i32 + 1
+                        );
+                        conjunction!(
+                            [other_domain_id >= upper_bound + 1]
+                                & [domain_id
+                                    <= not_equal_constant - self.processing_time as i32 + 1]
+                        )
+                    }
+                    (
+                        Predicate::UpperBound {
+                            domain_id,
+                            upper_bound,
+                        },
+                        Predicate::Equal {
+                            domain_id: other_domain_id,
+                            equality_constant,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= upper_bound + 1);
+                        pumpkin_assert_simple!(
+                            self.upper_bound <= equality_constant - self.processing_time as i32
+                        );
+                        conjunction!(
+                            [other_domain_id >= upper_bound + 1]
+                                & [domain_id <= equality_constant - self.processing_time as i32]
+                        )
+                    }
+                    (
+                        Predicate::NotEqual {
+                            domain_id,
+                            not_equal_constant,
+                        },
+                        Predicate::LowerBound {
+                            domain_id: other_domain_id,
+                            lower_bound,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= not_equal_constant);
+                        pumpkin_assert_simple!(
+                            self.upper_bound <= lower_bound - self.processing_time as i32
+                        );
+                        conjunction!(
+                            [other_domain_id >= not_equal_constant]
+                                & [domain_id <= lower_bound - self.processing_time as i32]
+                        )
+                    }
+                    (
+                        Predicate::NotEqual {
+                            domain_id,
+                            not_equal_constant,
+                        },
+                        Predicate::NotEqual {
+                            domain_id: other_domain_id,
+                            not_equal_constant: other_not_equal_constant,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= not_equal_constant);
+                        pumpkin_assert_simple!(
+                            self.upper_bound
+                                <= other_not_equal_constant - self.processing_time as i32 + 1
+                        );
+                        conjunction!(
+                            [other_domain_id >= not_equal_constant]
+                                & [domain_id
+                                    <= other_not_equal_constant - self.processing_time as i32 + 1]
+                        )
+                    }
+                    (
+                        Predicate::NotEqual {
+                            domain_id,
+                            not_equal_constant,
+                        },
+                        Predicate::Equal {
+                            domain_id: other_domain_id,
+                            equality_constant,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= not_equal_constant);
+                        pumpkin_assert_simple!(
+                            self.upper_bound <= equality_constant - self.processing_time as i32
+                        );
+                        conjunction!(
+                            [other_domain_id >= not_equal_constant]
+                                & [domain_id <= equality_constant - self.processing_time as i32]
+                        )
+                    }
+                    (
+                        Predicate::Equal {
+                            domain_id,
+                            equality_constant,
+                        },
+                        Predicate::LowerBound {
+                            domain_id: other_domain_id,
+                            lower_bound,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= equality_constant);
+                        pumpkin_assert_simple!(
+                            self.upper_bound <= lower_bound - self.processing_time as i32
+                        );
+                        conjunction!(
+                            [other_domain_id >= equality_constant]
+                                & [domain_id <= lower_bound - self.processing_time as i32]
+                        )
+                    }
+                    (
+                        Predicate::Equal {
+                            domain_id,
+                            equality_constant,
+                        },
+                        Predicate::NotEqual {
+                            domain_id: other_domain_id,
+                            not_equal_constant,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= equality_constant + 1);
+                        pumpkin_assert_simple!(
+                            self.upper_bound
+                                >= not_equal_constant - self.processing_time as i32 + 1
+                        );
+                        conjunction!(
+                            [other_domain_id >= equality_constant + 1]
+                                & [domain_id
+                                    <= not_equal_constant - self.processing_time as i32 + 1]
+                        )
+                    }
+                    (
+                        Predicate::Equal {
+                            domain_id,
+                            equality_constant,
+                        },
+                        Predicate::Equal {
+                            domain_id: other_domain_id,
+                            equality_constant: other_equality_constant,
+                        },
+                    ) => {
+                        pumpkin_assert_simple!(other.lower_bound >= equality_constant + 1);
+                        pumpkin_assert_simple!(
+                            self.upper_bound
+                                >= other_equality_constant - self.processing_time as i32
+                        );
+                        conjunction!(
+                            [other_domain_id >= equality_constant + 1]
+                                & [domain_id
+                                    <= other_equality_constant - self.processing_time as i32]
+                        )
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
     pub(crate) fn apply_predicate(&self, predicate: Predicate) -> Self {
         let mut result = self.clone();
         match predicate {
