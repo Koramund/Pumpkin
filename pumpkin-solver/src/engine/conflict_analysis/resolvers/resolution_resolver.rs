@@ -51,10 +51,12 @@ pub(crate) enum AnalysisMode {
     OneUIP,
     /// An alternative to 1-UIP which stops as soon as the learned nogood only creates decision
     /// predicates.
+    #[allow(dead_code)]
     AllDecision,
 }
 
 impl ResolutionResolver {
+    #[allow(dead_code)]
     pub(crate) fn with_mode(mode: AnalysisMode) -> Self {
         Self {
             mode,

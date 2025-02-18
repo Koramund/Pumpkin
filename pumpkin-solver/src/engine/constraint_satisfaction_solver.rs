@@ -11,7 +11,6 @@ use log::info;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
-use super::conflict_analysis::AnalysisMode;
 use super::conflict_analysis::ConflictAnalysisContext;
 use super::conflict_analysis::LearnedNogood;
 use super::conflict_analysis::NoLearningResolver;
@@ -692,7 +691,8 @@ impl ConstraintSatisfactionSolver {
     ///     }
     /// }
     /// ```
-    pub fn extract_clausal_core(&mut self, brancher: &mut impl Brancher) -> CoreExtractionResult {
+    #[allow(dead_code)]
+    pub fn extract_clausal_core(&mut self, _brancher: &mut impl Brancher) -> CoreExtractionResult {
         todo!()
     }
 

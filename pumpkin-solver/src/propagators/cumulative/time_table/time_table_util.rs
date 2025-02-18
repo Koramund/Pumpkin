@@ -19,7 +19,7 @@ use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::ReadDomains;
 use crate::engine::variables::IntegerVariable;
-use crate::propagators::cumulative::time_table::explanations::big_step::create_big_step_propagation_explanation;
+use crate::propagators::cumulative::time_table::explanations::big_step::create_big_step_explanation;
 use crate::propagators::cumulative::time_table::propagation_handler::CumulativePropagationHandler;
 use crate::propagators::CumulativeParameters;
 use crate::propagators::ResourceProfile;
@@ -359,6 +359,7 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                 }
 
                 let mut profiles_contributing_to_disjointness = Vec::new();
+                let mut num_profile_tasks_before = 0;
                 'time_table_loop: for (index, profile) in time_table.iter().enumerate() {
                     let profile_range: RangeSet2<i32> =
                         RangeSet::from(profile.start..profile.end + 1);
@@ -378,6 +379,7 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                             profile.end,
                         )
                     {
+                        num_profile_tasks_before += profile.profile_tasks.len();
                         profiles_contributing_to_disjointness.push(index);
                         intersection.difference_with(&profile_range);
                     }
@@ -402,11 +404,25 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                                 & [other_task.start_variable >= lb_y]
                                 & [other_task.start_variable <= ub_y]
                         );
-                        for profile in profiles_contributing_to_disjointness.iter() {
-                            let profile_explanation =
-                                create_big_step_propagation_explanation(time_table[*profile]);
-                            explanation.extend(profile_explanation.into_iter());
-                        }
+
+                        let len_before = explanation.len();
+                        let profile_explanation = create_big_step_explanation(
+                            task.resource_usage,
+                            other_task.resource_usage,
+                            parameters.capacity,
+                            profiles_contributing_to_disjointness
+                                .iter()
+                                .map(|profile_index| time_table[*profile_index]),
+                        );
+                        explanation.extend(profile_explanation);
+
+                        updatable_structures
+                            .statistics
+                            .average_number_of_elements_removed_by_taking
+                            .add_term(
+                                num_profile_tasks_before - (explanation.len() / 2 - len_before),
+                            );
+
                         let size_before = explanation.len();
                         explanation = context
                             .semantic_minimiser

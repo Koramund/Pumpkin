@@ -16,6 +16,7 @@ create_statistics_struct!(CumulativeStatistics {
     average_number_of_profiles_in_disjointness: CumulativeMovingAverage<usize>,
     average_explanation_size_when_finding_disjointness: CumulativeMovingAverage<usize>,
     average_number_of_elements_removed_when_maximising: CumulativeMovingAverage<usize>,
+    average_number_of_elements_removed_by_taking: CumulativeMovingAverage<usize>,
 });
 
 /// Structures which are adjusted during search; either due to incrementality or to keep track of
