@@ -11,7 +11,6 @@ use crate::conjunction;
 use crate::containers::KeyedVec;
 use crate::create_statistics_struct;
 use crate::engine::propagation::LocalId;
-use crate::engine::propagation::PropagationContext;
 use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;

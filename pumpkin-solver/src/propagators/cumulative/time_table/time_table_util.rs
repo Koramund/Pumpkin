@@ -11,7 +11,6 @@ use range_collections::RangeSet2;
 
 use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::PropagationStatusCP;
-use crate::conjunction;
 use crate::engine::propagation::EnqueueDecision;
 use crate::engine::propagation::PropagationContext;
 use crate::engine::propagation::PropagationContextMut;
@@ -429,7 +428,7 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
 
                         updatable_structures
                             .statistics
-                            .average_number_of_elements_removed_by_taking
+                            .average_number_of_tasks_removed_by_taking
                             .add_term(
                                 num_profile_tasks_before - (explanation.len() / 2 - len_before),
                             );

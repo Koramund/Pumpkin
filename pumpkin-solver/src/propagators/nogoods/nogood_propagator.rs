@@ -35,7 +35,6 @@ use crate::engine::ConstraintSatisfactionSolver;
 use crate::engine::DomainFaithfulness;
 use crate::engine::SolverStatistics;
 use crate::engine::TrailedAssignments;
-use crate::predicate;
 use crate::propagators::nogoods::Nogood;
 use crate::propagators::BoundDomain;
 use crate::pumpkin_assert_advanced;
