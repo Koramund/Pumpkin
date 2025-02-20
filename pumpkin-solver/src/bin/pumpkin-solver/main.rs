@@ -553,6 +553,7 @@ fn run() -> PumpkinResult<()> {
                     args.cumulative_propagation_method,
                     args.cumulative_incremental_backtracking,
                     None,
+                    false,
                 ),
                 search_mode: args.search_mode,
             },

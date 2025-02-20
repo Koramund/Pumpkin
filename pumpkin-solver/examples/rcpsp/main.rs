@@ -116,6 +116,9 @@ struct Args {
 
     #[arg(short = 'x', long = "only-collect-statistics")]
     only_collect_statistics: bool,
+
+    #[arg(short = 'p', long = "propagate-disjunctive")]
+    propagate_disjunctive: bool,
 }
 
 pub fn main() {
@@ -211,6 +214,7 @@ fn run() -> SchedulingResult<()> {
         &start_variables,
         &incompatibility_matrix,
         args.use_cumulative_disjointness,
+        args.propagate_disjunctive,
     );
 
     if args.use_node_packing {
@@ -473,6 +477,7 @@ fn add_cumulatives(
     start_variables: &[DomainId],
     incompatibility_matrix: &[Vec<Literal>],
     use_cumulative_disjointness: bool,
+    propagate_disjunctive: bool,
 ) {
     for (resource_index, resource_usages) in rcpsp_instance.resource_requirements.iter().enumerate()
     {
@@ -500,6 +505,7 @@ fn add_cumulatives(
                     } else {
                         None
                     },
+                    propagate_disjunctive,
                 ),
             ))
             .post();

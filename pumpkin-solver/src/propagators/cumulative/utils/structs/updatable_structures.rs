@@ -17,6 +17,8 @@ create_statistics_struct!(CumulativeStatistics {
     average_explanation_size_when_finding_disjointness: CumulativeMovingAverage<usize>,
     average_number_of_elements_removed_when_maximising: CumulativeMovingAverage<usize>,
     average_number_of_tasks_removed_by_taking: CumulativeMovingAverage<usize>,
+
+    number_of_propagations_disjunctive_reasoning: usize,
 });
 
 /// Structures which are adjusted during search; either due to incrementality or to keep track of

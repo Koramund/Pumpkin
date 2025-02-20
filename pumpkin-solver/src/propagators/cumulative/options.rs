@@ -19,6 +19,7 @@ pub(crate) struct CumulativePropagatorOptions {
     /// Determines whether to incrementally backtrack or to calculate from scratch
     pub(crate) incremental_backtracking: bool,
     pub(crate) incompatibility_matrix: Option<Vec<Vec<Literal>>>,
+    pub(crate) propagate_disjunctive: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -39,6 +40,7 @@ impl CumulativeOptions {
         propagation_method: CumulativePropagationMethod,
         incremental_backtracking: bool,
         incompatibility_matrix: Option<Vec<Vec<Literal>>>,
+        propagate_disjunctive: bool,
     ) -> Self {
         Self {
             propagation_method,
@@ -48,6 +50,7 @@ impl CumulativeOptions {
                 generate_sequence,
                 incremental_backtracking,
                 incompatibility_matrix,
+                propagate_disjunctive,
             },
         }
     }

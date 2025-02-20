@@ -18,10 +18,13 @@ use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::ReadDomains;
 use crate::engine::variables::IntegerVariable;
+use crate::predicate;
+use crate::predicates::PropositionalConjunction;
 use crate::propagators::cumulative::time_table::explanations::big_step::create_big_step_explanation;
 use crate::propagators::cumulative::time_table::propagation_handler::CumulativePropagationHandler;
 use crate::propagators::BoundDomain;
 use crate::propagators::CumulativeParameters;
+use crate::propagators::CumulativeStatistics;
 use crate::propagators::ResourceProfile;
 use crate::propagators::Task;
 use crate::propagators::UpdatableStructures;
@@ -29,6 +32,7 @@ use crate::propagators::UpdatedTaskInfo;
 use crate::pumpkin_assert_extreme;
 use crate::pumpkin_assert_moderate;
 use crate::pumpkin_assert_simple;
+use crate::variables::Literal;
 
 /// The result of [`should_enqueue`], contains the [`EnqueueDecision`] whether the propagator should
 /// currently be enqueued and potentially the updated [`Task`] (in the form of a
@@ -327,6 +331,66 @@ fn propagate_single_profiles<'a, Var: IntegerVariable + 'static>(
     Ok(())
 }
 
+fn disjunctive_propagation<Var: IntegerVariable + 'static>(
+    context: &mut PropagationContextMut,
+    first_task: &Rc<Task<Var>>,
+    second_task: &Rc<Task<Var>>,
+    disjointness_literal: Literal,
+    statistics: &mut CumulativeStatistics,
+    should_stop: bool,
+) -> PropagationStatusCP {
+    if context.lower_bound(&first_task.start_variable) + first_task.processing_time
+        > context.lower_bound(&second_task.start_variable)
+        && context.lower_bound(&first_task.start_variable) + first_task.processing_time - 1
+            >= context.lower_bound(&second_task.start_variable)
+        && context.upper_bound(&first_task.start_variable)
+            <= context.lower_bound(&second_task.start_variable) + second_task.processing_time - 1
+    {
+        statistics.number_of_propagations_disjunctive_reasoning += 1;
+        pumpkin_assert_simple!(
+            context.upper_bound(&first_task.start_variable)
+                <= context.lower_bound(&second_task.start_variable) + second_task.processing_time
+                    - 1
+        );
+        context.set_lower_bound(
+            &second_task.start_variable,
+            context.lower_bound(&first_task.start_variable) + first_task.processing_time,
+            std::iter::once(disjointness_literal.get_true_predicate())
+                .chain(
+                    [
+                        predicate!(
+                            first_task.start_variable
+                                >= context.lower_bound(&first_task.start_variable)
+                        ),
+                        predicate!(
+                            first_task.start_variable
+                                <= context.lower_bound(&second_task.start_variable)
+                                    + second_task.processing_time
+                                    - 1
+                        ),
+                        predicate!(
+                            second_task.start_variable
+                                >= context.lower_bound(&second_task.start_variable)
+                        ),
+                    ]
+                    .into_iter(),
+                )
+                .collect::<PropositionalConjunction>(),
+        )?;
+    } else if !should_stop {
+        disjunctive_propagation(
+            context,
+            second_task,
+            first_task,
+            disjointness_literal,
+            statistics,
+            true,
+        )?;
+    }
+
+    Ok(())
+}
+
 fn find_disjointness<Var: IntegerVariable + 'static>(
     updatable_structures: &mut UpdatableStructures<Var>,
     context: &mut PropagationContextMut,
@@ -336,12 +400,24 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
     if let Some(incompatibility_matrix) = &parameters.options.incompatibility_matrix {
         for task in parameters.tasks.iter() {
             for other_task in parameters.tasks.iter() {
-                if task.id <= other_task.id
-                    || context.is_literal_true(
-                        &incompatibility_matrix[parameters.mapping[task.id]]
-                            [parameters.mapping[other_task.id]],
-                    )
-                {
+                if task.id <= other_task.id {
+                    continue;
+                }
+                if context.is_literal_true(
+                    &incompatibility_matrix[parameters.mapping[task.id]]
+                        [parameters.mapping[other_task.id]],
+                ) {
+                    if parameters.options.propagate_disjunctive {
+                        disjunctive_propagation(
+                            context,
+                            task,
+                            other_task,
+                            incompatibility_matrix[parameters.mapping[task.id]]
+                                [parameters.mapping[other_task.id]],
+                            &mut updatable_structures.statistics,
+                            false,
+                        )?;
+                    }
                     continue;
                 }
 
@@ -469,6 +545,17 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                             true,
                             explanation,
                         )?;
+                        if parameters.options.propagate_disjunctive {
+                            disjunctive_propagation(
+                                context,
+                                task,
+                                other_task,
+                                incompatibility_matrix[parameters.mapping[task.id]]
+                                    [parameters.mapping[other_task.id]],
+                                &mut updatable_structures.statistics,
+                                false,
+                            )?;
+                        }
                         break 'time_table_loop;
                     }
                 }
