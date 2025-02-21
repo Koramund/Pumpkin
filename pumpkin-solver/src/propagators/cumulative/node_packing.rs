@@ -263,7 +263,7 @@ impl BoundDomain {
                             lower_bound,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= equality_constant);
+                        pumpkin_assert_simple!(other.lower_bound >= equality_constant + 1);
                         pumpkin_assert_simple!(
                             self.upper_bound <= lower_bound - self.processing_time as i32
                         );
