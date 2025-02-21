@@ -145,12 +145,14 @@ impl BoundDomain {
                             lower_bound,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= upper_bound + 1);
+                        pumpkin_assert_simple!(
+                            other.lower_bound >= upper_bound + self.processing_time as i32
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound <= lower_bound - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= upper_bound + 1]
+                            [other_domain_id >= upper_bound + self.processing_time as i32]
                                 & [domain_id <= lower_bound - self.processing_time as i32]
                         )
                     }
@@ -164,13 +166,15 @@ impl BoundDomain {
                             not_equal_constant,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= upper_bound + 1);
+                        pumpkin_assert_simple!(
+                            other.lower_bound >= upper_bound + self.processing_time as i32
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound
                                 <= not_equal_constant - self.processing_time as i32 + 1
                         );
                         conjunction!(
-                            [other_domain_id >= upper_bound + 1]
+                            [other_domain_id >= upper_bound + self.processing_time as i32]
                                 & [domain_id
                                     <= not_equal_constant - self.processing_time as i32 + 1]
                         )
@@ -185,12 +189,14 @@ impl BoundDomain {
                             equality_constant,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= upper_bound + 1);
+                        pumpkin_assert_simple!(
+                            other.lower_bound >= upper_bound + self.processing_time as i32
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound <= equality_constant - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= upper_bound + 1]
+                            [other_domain_id >= upper_bound + self.processing_time as i32]
                                 & [domain_id <= equality_constant - self.processing_time as i32]
                         )
                     }
@@ -204,12 +210,16 @@ impl BoundDomain {
                             lower_bound,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= not_equal_constant);
+                        pumpkin_assert_simple!(
+                            other.lower_bound
+                                >= not_equal_constant + self.processing_time as i32 - 1
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound <= lower_bound - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= not_equal_constant]
+                            [other_domain_id
+                                >= not_equal_constant + self.processing_time as i32 - 1]
                                 & [domain_id <= lower_bound - self.processing_time as i32]
                         )
                     }
@@ -223,13 +233,17 @@ impl BoundDomain {
                             not_equal_constant: other_not_equal_constant,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= not_equal_constant);
+                        pumpkin_assert_simple!(
+                            other.lower_bound
+                                >= not_equal_constant + self.processing_time as i32 - 1
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound
                                 <= other_not_equal_constant - self.processing_time as i32 + 1
                         );
                         conjunction!(
-                            [other_domain_id >= not_equal_constant]
+                            [other_domain_id
+                                >= not_equal_constant + self.processing_time as i32 - 1]
                                 & [domain_id
                                     <= other_not_equal_constant - self.processing_time as i32 + 1]
                         )
@@ -244,12 +258,16 @@ impl BoundDomain {
                             equality_constant,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= not_equal_constant);
+                        pumpkin_assert_simple!(
+                            other.lower_bound
+                                >= not_equal_constant + self.processing_time as i32 - 1
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound <= equality_constant - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= not_equal_constant]
+                            [other_domain_id
+                                >= not_equal_constant + self.processing_time as i32 - 1]
                                 & [domain_id <= equality_constant - self.processing_time as i32]
                         )
                     }
@@ -263,12 +281,14 @@ impl BoundDomain {
                             lower_bound,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= equality_constant + 1);
+                        pumpkin_assert_simple!(
+                            other.lower_bound >= equality_constant + self.processing_time as i32
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound <= lower_bound - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= equality_constant + 1]
+                            [other_domain_id >= equality_constant + self.processing_time as i32]
                                 & [domain_id <= lower_bound - self.processing_time as i32]
                         )
                     }
@@ -282,13 +302,15 @@ impl BoundDomain {
                             not_equal_constant,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= equality_constant + 1);
+                        pumpkin_assert_simple!(
+                            other.lower_bound >= equality_constant + self.processing_time as i32
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound
                                 >= not_equal_constant - self.processing_time as i32 + 1
                         );
                         conjunction!(
-                            [other_domain_id >= equality_constant + 1]
+                            [other_domain_id >= equality_constant + self.processing_time as i32]
                                 & [domain_id
                                     <= not_equal_constant - self.processing_time as i32 + 1]
                         )
@@ -303,13 +325,15 @@ impl BoundDomain {
                             equality_constant: other_equality_constant,
                         },
                     ) => {
-                        pumpkin_assert_simple!(other.lower_bound >= equality_constant + 1);
+                        pumpkin_assert_simple!(
+                            other.lower_bound >= equality_constant + self.processing_time as i32
+                        );
                         pumpkin_assert_simple!(
                             self.upper_bound
                                 >= other_equality_constant - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= equality_constant + 1]
+                            [other_domain_id >= equality_constant + self.processing_time as i32]
                                 & [domain_id
                                     <= other_equality_constant - self.processing_time as i32]
                         )
