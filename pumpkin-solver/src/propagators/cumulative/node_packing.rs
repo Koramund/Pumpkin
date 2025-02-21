@@ -268,7 +268,7 @@ impl BoundDomain {
                             self.upper_bound <= lower_bound - self.processing_time as i32
                         );
                         conjunction!(
-                            [other_domain_id >= equality_constant]
+                            [other_domain_id >= equality_constant + 1]
                                 & [domain_id <= lower_bound - self.processing_time as i32]
                         )
                     }
