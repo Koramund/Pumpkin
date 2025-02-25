@@ -45,6 +45,31 @@ impl BoundDomain {
         }
     }
 
+    pub(crate) fn get_explanation_for_bound_disjointness<Var: IntegerVariable + 'static>(
+        &self,
+        self_var: Var,
+        other: &Self,
+        other_var: Var,
+    ) -> PropositionalConjunction {
+        pumpkin_assert_simple!(!self.overlaps_with(other));
+        if self.upper_bound + self.processing_time as i32 <= other.lower_bound {
+            // self ends before other starts
+            conjunction!(
+                [self_var <= other.lower_bound - self.processing_time as i32]
+                    & [other_var >= other.lower_bound]
+            )
+        } else {
+            // other ends before self starts
+            pumpkin_assert_simple!(
+                other.upper_bound + other.processing_time as i32 <= self.lower_bound
+            );
+            conjunction!(
+                [other_var <= self.lower_bound - other.processing_time as i32]
+                    & [self_var >= self.lower_bound]
+            )
+        }
+    }
+
     pub(crate) fn get_explanation_for_overlap_cumulative<Var: IntegerVariable + 'static>(
         &self,
         self_var: Var,
@@ -533,148 +558,6 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
             }
         }
         Ok(None)
-        // TODO Commenting out the MIP model construction so far; to be revisited
-        // // Split the timeline by the start and finish points from all intervals
-        // let mut time_points = intervals.iter().flat_map(|x| [x.0, x.1]).collect_vec();
-        // time_points.sort();
-        // time_points.dedup();
-        // // Construct a MIP model for finding an conflict-generating clique
-        // // of smallest cardinality
-        // let mut model = Model::new()
-        //     .hide_output()
-        //     .include_default_plugins()
-        //     .create_prob("conflict_discovery")
-        //     .set_obj_sense(ObjSense::Minimize);
-        // // Binary variables encoding interval selection
-        // let interval_vars = durations
-        //     .iter()
-        //     .enumerate()
-        //     .map(|(ix, _)| {
-        //         model.add_var(
-        //             0.,
-        //             1.,
-        //             1.,
-        //             format!("x{ix}").as_str(),
-        //             russcip::VarType::Binary,
-        //         )
-        //     })
-        //     .collect_vec();
-        // // Binary variables encoding time segment selection
-        // let time_segments = time_points
-        //     .iter()
-        //     .skip(1)
-        //     .zip(time_points.iter())
-        //     .map(|(&finish, &start)| (start, finish))
-        //     .collect_vec();
-        // let time_segment_vars = time_segments
-        //     .iter()
-        //     .enumerate()
-        //     .map(|(ix, _)| {
-        //         model.add_var(
-        //             0.,
-        //             1.,
-        //             0.,
-        //             format!("t{ix}").as_str(),
-        //             russcip::VarType::Binary,
-        //         )
-        //     })
-        //     .collect_vec();
-        // // Duration bound
-        // model.add_cons(
-        //     interval_vars
-        //         .iter()
-        //         .chain(time_segment_vars.iter())
-        //         .cloned()
-        //         .collect_vec(),
-        //     &durations
-        //         .iter()
-        //         .cloned()
-        //         .chain(time_segments.iter().map(|(start, finish)| start - finish))
-        //         .map(|x| x as f64)
-        //         .collect_vec(),
-        //     1.0,
-        //     f64::INFINITY,
-        //     "duration",
-        // );
-        // // Interval choice implies choosing all contained time spand
-        // for ((int_lhs, int_rhs), int_var) in intervals.iter().zip(interval_vars.iter()) {
-        //     for ((ts_lhs, ts_rhs), ts_var) in time_segments.iter().zip(time_segment_vars.iter())
-        // {         if int_lhs <= ts_lhs && ts_rhs <= int_rhs {
-        //             model.add_cons(
-        //                 vec![int_var.clone(), ts_var.clone()],
-        //                 &[-1.0, 1.0],
-        //                 0.,
-        //                 f64::INFINITY,
-        //                 format!("contain_impl_{}_{}_{}_{}", int_lhs, int_rhs, ts_lhs, ts_rhs)
-        //                     .as_str(),
-        //             );
-        //         }
-        //     }
-        // }
-        // // Clique constraints
-        // for (index_lhs, lhs_var) in interval_vars.iter().enumerate() {
-        //     for (index_rhs, rhs_var) in interval_vars.iter().enumerate() {
-        //         if index_lhs == index_rhs {
-        //             continue;
-        //         }
-        //         if !self.parameters.static_incompatibilities[index_lhs][index_rhs] {
-        //             // Forbid choosing both intervals
-        //             model.add_cons(
-        //                 vec![lhs_var.clone(), rhs_var.clone()],
-        //                 &[1.0, 1.0],
-        //                 0.,
-        //                 1.,
-        //                 format!("clique_{}_{}", index_lhs, index_rhs).as_str(),
-        //             );
-        //         }
-        //     }
-        // }
-        // let solved_model = model.solve();
-        // match solved_model.status() {
-        //     russcip::Status::Optimal => {
-        //         // An optimal clique is discovered, store it
-        //         let sol = solved_model.best_sol().unwrap();
-        //         println!("{}", sol.obj_val());
-        //         let collect = all_tasks
-        //             .iter()
-        //             .enumerate()
-        //             .filter_map(|(ix, task)| {
-        //                 if sol.val(interval_vars[ix].clone()) > 1e-3 {
-        //                     Some(task.clone())
-        //                 } else {
-        //                     None
-        //                 }
-        //             })
-        //             .collect();
-        //         let info = all_tasks
-        //             .iter()
-        //             .enumerate()
-        //             .filter_map(|(ix, task)| {
-        //                 if sol.val(interval_vars[ix].clone()) > 1e-3 {
-        //                     Some((ix, durations[ix], intervals[ix]))
-        //                 } else {
-        //                     None
-        //                 }
-        //             })
-        //             .collect::<Vec<_>>();
-        //         println!("{info:?}");
-        //         if info.len() == 2 {
-        //             let incompatible =
-        //                 self.parameters.static_incompatibilities[info[0].0][info[1].0];
-        //             println!("{incompatible}");
-        //         }
-
-        //         Some(collect)
-        //     }
-        //     russcip::Status::Infeasible => {
-        //         // No conflict exists, keep going
-        //         None
-        //     }
-        //     _ => {
-        //         // Miscellaneous reason, stay away
-        //         None
-        //     }
-        // }
     }
 
     fn are_overlapping(interval_1: (i32, i32), interval_2: (i32, i32)) -> bool {
@@ -698,19 +581,25 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                 intervals[task_rhs.id.unpack() as usize],
             )
         {
+            let domain_self = BoundDomain::new(
+                intervals[task_lhs.id.unpack() as usize].0,
+                intervals[task_lhs.id.unpack() as usize].1 - task_lhs.processing_time,
+                task_lhs.processing_time as u32,
+            );
+            let domain_other = BoundDomain::new(
+                intervals[task_rhs.id.unpack() as usize].0,
+                intervals[task_rhs.id.unpack() as usize].1 - task_rhs.processing_time,
+                task_rhs.processing_time as u32,
+            );
+
             context.assign_literal(
                 &self.parameters.disjointness[self.parameters.mapping[task_lhs.id]]
                     [self.parameters.mapping[task_rhs.id]],
                 true,
-                conjunction!(
-                    [task_lhs.start_variable >= intervals[task_lhs.id.unpack() as usize].0]
-                        & [task_lhs.start_variable
-                            <= intervals[task_lhs.id.unpack() as usize].1
-                                - task_lhs.processing_time]
-                        & [task_rhs.start_variable >= intervals[task_rhs.id.unpack() as usize].0]
-                        & [task_rhs.start_variable
-                            <= intervals[task_rhs.id.unpack() as usize].1
-                                - task_rhs.processing_time]
+                domain_self.get_explanation_for_bound_disjointness(
+                    task_lhs.start_variable.clone(),
+                    &domain_other,
+                    task_rhs.start_variable.clone(),
                 ),
             )?;
         }
