@@ -189,8 +189,13 @@ fn run() -> SchedulingResult<()> {
         exit(0)
     });
 
-    let (incompatibility_matrix, mapping) =
-        create_incompatability_matrix(&mut solver, &rcpsp_instance, &start_variables, &precedences);
+    let (
+        incompatibility_matrix,
+        mapping,
+        found_possible,
+        num_resource_infeasible_found,
+        num_resource_infeasibility_per_resource,
+    ) = create_incompatability_matrix(&mut solver, &rcpsp_instance, &start_variables, &precedences);
 
     add_objective_function(&mut solver, &rcpsp_instance, &start_variables, makespan);
     add_precedences(&mut solver, &rcpsp_instance, &start_variables);
@@ -203,6 +208,9 @@ fn run() -> SchedulingResult<()> {
             &precedences,
             &start_variables,
             horizon,
+            num_resource_infeasible_found,
+            found_possible,
+            num_resource_infeasibility_per_resource,
         );
         if args.only_collect_statistics {
             return Ok(());
@@ -356,6 +364,10 @@ fn create_instance_statistics(
     precedences: &PrecedenceClosure,
     start_variables: &[DomainId],
     horizon: u32,
+
+    num_resource_infeasible_found: usize,
+    possible_found: usize,
+    found_resource_infeasible_per_resource: Vec<usize>,
 ) {
     log_statistic(
         "orderStrength",
@@ -444,7 +456,21 @@ fn create_instance_statistics(
             &rcpsp_instance.resource_requirements,
             rcpsp_instance.processing_times.len() as u32,
         ),
-    )
+    );
+
+    log_statistic(
+        "ratioStaticInfeasibilityVsPossible",
+        num_resource_infeasible_found as f64 / possible_found as f64,
+    );
+    for (index, resource_infeasible_on_resource) in found_resource_infeasible_per_resource
+        .into_iter()
+        .enumerate()
+    {
+        log_statistic(
+            format!("ratioStaticInfeasibilityVsPossibleResource{index}"),
+            resource_infeasible_on_resource as f64 / possible_found as f64,
+        )
+    }
 }
 
 fn add_node_packing(
@@ -539,12 +565,24 @@ fn add_precedences(
         }
     }
 }
+
 fn create_incompatability_matrix(
     solver: &mut Solver,
     rcpsp_instance: &RcpspInstance,
     start_variables: &[DomainId],
     precedences: &PrecedenceClosure,
-) -> (Vec<Vec<Literal>>, KeyedVec<DomainId, usize>) {
+) -> (
+    Vec<Vec<Literal>>,
+    KeyedVec<DomainId, usize>,
+    usize,
+    usize,
+    Vec<usize>,
+) {
+    let mut num_resource_infeasible_found = 0;
+    let mut possible_found = 0;
+    let mut found_resource_infeasible_per_resource =
+        vec![0; rcpsp_instance.resource_capacities.len()];
+
     let mut incompatibility_matrix: Vec<Vec<Literal>> =
         Vec::with_capacity(rcpsp_instance.processing_times.len());
     let mut mapping: KeyedVec<DomainId, usize> = KeyedVec::default();
@@ -560,14 +598,18 @@ fn create_incompatability_matrix(
         for other_index in 0..rcpsp_instance.processing_times.len() {
             let result = match index.cmp(&other_index) {
                 std::cmp::Ordering::Less => {
+                    possible_found += 1;
                     let mut is_resource_infeasible = false;
                     for resource_index in 0..rcpsp_instance.resource_capacities.len() {
                         if rcpsp_instance.resource_requirements[resource_index][index]
                             + rcpsp_instance.resource_requirements[resource_index][other_index]
                             > rcpsp_instance.resource_capacities[resource_index]
                         {
-                            is_resource_infeasible = true;
-                            break;
+                            if !is_resource_infeasible {
+                                num_resource_infeasible_found += 1;
+                                is_resource_infeasible = true;
+                            }
+                            found_resource_infeasible_per_resource[resource_index] += 1;
                         }
                     }
 
@@ -601,7 +643,13 @@ fn create_incompatability_matrix(
         }
         incompatibility_matrix.push(new_vec)
     }
-    (incompatibility_matrix, mapping)
+    (
+        incompatibility_matrix,
+        mapping,
+        possible_found,
+        num_resource_infeasible_found,
+        found_resource_infeasible_per_resource,
+    )
 }
 
 fn add_objective_function(
