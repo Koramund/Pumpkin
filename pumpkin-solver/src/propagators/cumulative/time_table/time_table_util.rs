@@ -333,8 +333,8 @@ fn propagate_single_profiles<'a, Var: IntegerVariable + 'static>(
 
 fn disjunctive_propagation<Var: IntegerVariable + 'static>(
     context: &mut PropagationContextMut,
-    first_task: &Rc<Task<Var>>,
-    second_task: &Rc<Task<Var>>,
+    first_task: &Task<Var>,
+    second_task: &Task<Var>,
     disjointness_literal: Literal,
     statistics: &mut CumulativeStatistics,
     should_stop: bool,
@@ -391,6 +391,34 @@ fn disjunctive_propagation<Var: IntegerVariable + 'static>(
     Ok(())
 }
 
+fn propagate_disjunctive_timetable<Var: IntegerVariable + 'static>(
+    context: &mut PropagationContextMut,
+    task: &Rc<Task<Var>>,
+    other_task: &Rc<Task<Var>>,
+    disjointness_literal: Literal,
+    statistics: &mut CumulativeStatistics,
+) -> PropagationStatusCP {
+    // First we propagate the lower-bounds
+    disjunctive_propagation(
+        context,
+        task,
+        other_task,
+        disjointness_literal,
+        statistics,
+        false,
+    )?;
+    // Then we propagate the upper-bounds (by reversing the variable (i.e. EST becomes LCT and LCT
+    // becomes EST))
+    disjunctive_propagation(
+        context,
+        &task.reverse(),
+        &other_task.reverse(),
+        disjointness_literal,
+        statistics,
+        false,
+    )
+}
+
 fn find_disjointness<Var: IntegerVariable + 'static>(
     updatable_structures: &mut UpdatableStructures<Var>,
     context: &mut PropagationContextMut,
@@ -408,14 +436,13 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                         [parameters.mapping[other_task.id]],
                 ) {
                     if parameters.options.propagate_disjunctive {
-                        disjunctive_propagation(
+                        propagate_disjunctive_timetable(
                             context,
                             task,
                             other_task,
                             incompatibility_matrix[parameters.mapping[task.id]]
                                 [parameters.mapping[other_task.id]],
                             &mut updatable_structures.statistics,
-                            false,
                         )?;
                     }
                     continue;
@@ -546,14 +573,13 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                             explanation,
                         )?;
                         if parameters.options.propagate_disjunctive {
-                            disjunctive_propagation(
+                            propagate_disjunctive_timetable(
                                 context,
                                 task,
                                 other_task,
                                 incompatibility_matrix[parameters.mapping[task.id]]
                                     [parameters.mapping[other_task.id]],
                                 &mut updatable_structures.statistics,
-                                false,
                             )?;
                         }
                         break 'time_table_loop;
