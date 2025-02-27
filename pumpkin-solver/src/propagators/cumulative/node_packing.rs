@@ -516,6 +516,15 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                             )
                             .expect("Should not be an error here")
                 });
+                // Short-circuit the search if total remaining duration is not larger
+                // than the running time window length
+                let remaining_duration = remaining
+                    .iter()
+                    .map(|&ix| self.parameters.tasks[ix].processing_time)
+                    .sum::<i32>();
+                if remaining_duration <= finish - start {
+                    break;
+                }
                 // Choose the interval that is not disconnected from [start, finish)
                 // and minimizes the length added to the interval, breaking ties
                 // in favor of intervals with longer durations.
