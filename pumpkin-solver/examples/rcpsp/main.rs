@@ -194,6 +194,7 @@ fn run() -> SchedulingResult<()> {
         mapping,
         found_possible,
         num_resource_infeasible_found,
+        num_precedences_found,
         num_resource_infeasibility_per_resource,
     ) = create_incompatability_matrix(&mut solver, &rcpsp_instance, &start_variables, &precedences);
 
@@ -209,6 +210,7 @@ fn run() -> SchedulingResult<()> {
             &start_variables,
             horizon,
             num_resource_infeasible_found,
+            num_precedences_found,
             found_possible,
             num_resource_infeasibility_per_resource,
         );
@@ -366,75 +368,76 @@ fn create_instance_statistics(
     horizon: u32,
 
     num_resource_infeasible_found: usize,
+    num_precedences_found: usize,
     possible_found: usize,
     found_resource_infeasible_per_resource: Vec<usize>,
 ) {
-    log_statistic(
-        "orderStrength",
-        calculate_order_strength(precedences, rcpsp_instance.processing_times.len() as u32),
-    );
-    for (resource_index, resource_strength) in calculate_resource_strength(
-        &rcpsp_instance.resource_requirements,
-        &rcpsp_instance.resource_capacities,
-        solver,
-        start_variables,
-        &rcpsp_instance.processing_times,
-        horizon,
-    )
-    .iter()
-    .enumerate()
-    {
-        log_statistic(
-            format!("resourceStrengthResouce{resource_index}"),
-            resource_strength,
-        )
-    }
+    // log_statistic(
+    //     "orderStrength",
+    //     calculate_order_strength(precedences, rcpsp_instance.processing_times.len() as u32),
+    // );
+    // for (resource_index, resource_strength) in calculate_resource_strength(
+    //     &rcpsp_instance.resource_requirements,
+    //     &rcpsp_instance.resource_capacities,
+    //     solver,
+    //     start_variables,
+    //     &rcpsp_instance.processing_times,
+    //     horizon,
+    // )
+    // .iter()
+    // .enumerate()
+    // {
+    //     log_statistic(
+    //         format!("resourceStrengthResouce{resource_index}"),
+    //         resource_strength,
+    //     )
+    // }
 
-    log_statistic(
-        "disjunctionRatio",
-        calculate_disjunction_ratio(
-            precedences,
-            rcpsp_instance.processing_times.len() as u32,
-            &rcpsp_instance.resource_requirements,
-            &rcpsp_instance.resource_capacities,
-        ),
-    );
+    // log_statistic(
+    //     "disjunctionRatio",
+    //     calculate_disjunction_ratio(
+    //         precedences,
+    //         rcpsp_instance.processing_times.len() as u32,
+    //         &rcpsp_instance.resource_requirements,
+    //         &rcpsp_instance.resource_capacities,
+    //     ),
+    // );
 
-    log_statistic(
-        "processRange",
-        calculate_process_range(&rcpsp_instance.processing_times),
-    );
+    // log_statistic(
+    //     "processRange",
+    //     calculate_process_range(&rcpsp_instance.processing_times),
+    // );
 
-    log_statistic(
-        "mandatoryRatio",
-        calculate_mandatory_ratio(start_variables, &rcpsp_instance.processing_times, solver),
-    );
-    for (index, mandatory_constrainedness) in calculate_mandatory_constrainedness(
-        start_variables,
-        &rcpsp_instance.processing_times,
-        &rcpsp_instance.resource_requirements,
-        solver,
-        &rcpsp_instance.resource_capacities,
-        horizon,
-    )
-    .into_iter()
-    .enumerate()
-    {
-        log_statistic(
-            format!("mandatoryConstrainednessResource{index}"),
-            mandatory_constrainedness,
-        )
-    }
+    // log_statistic(
+    //     "mandatoryRatio",
+    //     calculate_mandatory_ratio(start_variables, &rcpsp_instance.processing_times, solver),
+    // );
+    // for (index, mandatory_constrainedness) in calculate_mandatory_constrainedness(
+    //     start_variables,
+    //     &rcpsp_instance.processing_times,
+    //     &rcpsp_instance.resource_requirements,
+    //     solver,
+    //     &rcpsp_instance.resource_capacities,
+    //     horizon,
+    // )
+    // .into_iter()
+    // .enumerate()
+    // {
+    //     log_statistic(
+    //         format!("mandatoryConstrainednessResource{index}"),
+    //         mandatory_constrainedness,
+    //     )
+    // }
 
-    log_statistic(
-        "freeFloatRatio",
-        calculate_free_float_ratio(
-            precedences,
-            &rcpsp_instance.processing_times,
-            start_variables,
-            solver,
-        ),
-    );
+    // log_statistic(
+    //     "freeFloatRatio",
+    //     calculate_free_float_ratio(
+    //         precedences,
+    //         &rcpsp_instance.processing_times,
+    //         start_variables,
+    //         solver,
+    //     ),
+    // );
 
     for (index, resource_constrainedness) in calculate_resource_constrainedness(
         &rcpsp_instance.resource_requirements,
@@ -461,6 +464,10 @@ fn create_instance_statistics(
     log_statistic(
         "ratioStaticInfeasibilityVsPossible",
         num_resource_infeasible_found as f64 / possible_found as f64,
+    );
+    log_statistic(
+        "ratioStaticInfeasibilityVsPossiblePrecedence",
+        num_precedences_found as f64 / possible_found as f64,
     );
     for (index, resource_infeasible_on_resource) in found_resource_infeasible_per_resource
         .into_iter()
@@ -576,9 +583,11 @@ fn create_incompatability_matrix(
     KeyedVec<DomainId, usize>,
     usize,
     usize,
+    usize,
     Vec<usize>,
 ) {
-    let mut num_resource_infeasible_found = 0;
+    let mut num_disjoint_found = 0;
+    let mut num_precedence_found = 0;
     let mut possible_found = 0;
     let mut found_resource_infeasible_per_resource =
         vec![0; rcpsp_instance.resource_capacities.len()];
@@ -606,7 +615,7 @@ fn create_incompatability_matrix(
                             > rcpsp_instance.resource_capacities[resource_index]
                         {
                             if !is_resource_infeasible {
-                                num_resource_infeasible_found += 1;
+                                num_disjoint_found += 1;
                                 is_resource_infeasible = true;
                             }
                             found_resource_infeasible_per_resource[resource_index] += 1;
@@ -617,19 +626,11 @@ fn create_incompatability_matrix(
                         solver.get_true_literal()
                     } else {
                         let is_connected_by_precedence =
-                            precedences.precedences().any(|precedence| {
-                                let index_precedes = (precedence.predecessor == index)
-                                    && (precedence.successor == other_index)
-                                    && (precedence.gap
-                                        >= rcpsp_instance.processing_times[index] as i32);
-                                let index_follows = (precedence.predecessor == other_index)
-                                    && (precedence.successor == index)
-                                    && (precedence.gap
-                                        >= rcpsp_instance.processing_times[other_index] as i32);
-                                index_precedes || index_follows
-                            });
+                            precedences.contains_edge(index, other_index);
 
                         if is_connected_by_precedence {
+                            num_disjoint_found += 1;
+                            num_precedence_found += 1;
                             solver.get_true_literal()
                         } else {
                             solver.new_literal()
@@ -647,7 +648,8 @@ fn create_incompatability_matrix(
         incompatibility_matrix,
         mapping,
         possible_found,
-        num_resource_infeasible_found,
+        num_disjoint_found,
+        num_precedence_found,
         found_resource_infeasible_per_resource,
     )
 }

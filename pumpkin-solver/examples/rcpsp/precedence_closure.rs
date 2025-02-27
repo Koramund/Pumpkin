@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use itertools::Itertools;
 use petgraph::algo::floyd_warshall;
 use petgraph::algo::NegativeCycle;
@@ -8,7 +10,7 @@ use crate::rcpsp_instance::Precedence;
 use crate::rcpsp_instance::RcpspInstance;
 
 pub(crate) struct PrecedenceClosure {
-    precedences: Vec<Precedence>,
+    precedences: BTreeMap<usize, BTreeMap<usize, Precedence>>,
     processing_times: Vec<u32>,
 }
 
@@ -29,8 +31,15 @@ impl PrecedenceClosure {
                 None
             }
         }?;
+        let mut precedences = BTreeMap::<usize, BTreeMap<usize, Precedence>>::new();
+        for precedence_entry in precedence_closure {
+            precedences
+                .entry(precedence_entry.successor)
+                .or_default()
+                .insert(precedence_entry.predecessor, precedence_entry);
+        }
         Some(Self {
-            precedences: precedence_closure,
+            precedences,
             processing_times: rcpsp_instance.processing_times.to_vec(),
         })
     }
@@ -38,31 +47,37 @@ impl PrecedenceClosure {
     pub(crate) fn num_edges(&self) -> usize {
         self.precedences
             .iter()
-            .filter(|precedence| {
-                // Simply check whether the precedence relation is large enough to be disjoint
-                precedence.gap >= self.processing_times[precedence.successor] as i32
+            .map(|(_, precedences)| {
+                precedences
+                    .iter()
+                    .filter(|(_, precedence)| {
+                        // Simply check whether the precedence relation is large enough to be
+                        // disjoint
+                        precedence.gap >= self.processing_times[precedence.successor] as i32
+                    })
+                    .count()
             })
-            .count()
+            .sum()
     }
 
     pub(crate) fn contains_edge(&self, node1: usize, node2: usize) -> bool {
-        self.precedences.iter().any(|precedence| {
-            // Check whether the precedence contains either of the two edges and the distance is
-            // larger than the processing times of the predecessor
-            ((precedence.predecessor == node1 && precedence.successor == node2)
-                || (precedence.predecessor == node2 && precedence.successor == node1))
-                && precedence.gap >= self.processing_times[precedence.predecessor] as i32
-        })
+        if let Some(precedence) = self.precedences.get(&node1).and_then(|e| e.get(&node2)) {
+            precedence.gap >= self.processing_times[precedence.predecessor] as i32
+        } else if let Some(precedence) = self.precedences.get(&node2).and_then(|e| e.get(&node1)) {
+            precedence.gap >= self.processing_times[precedence.predecessor] as i32
+        } else {
+            false
+        }
     }
 
-    pub(crate) fn get_incoming_edges(&self, node: usize) -> impl Iterator<Item = &Precedence> {
-        self.precedences
-            .iter()
-            .filter(move |precedence| precedence.successor == node && precedence.gap.is_positive())
-    }
-
-    pub(crate) fn precedences(&self) -> impl Iterator<Item = &Precedence> {
-        self.precedences.iter()
+    // TODO I could not figure out how to please borrow checker
+    pub(crate) fn get_incoming_edges(&self, node: usize) -> impl Iterator<Item = Precedence> {
+        let incoming = self.precedences.get(&node).cloned();
+        incoming
+            .into_iter()
+            .flatten()
+            .map(|(_, precedence)| precedence)
+            .filter(|precedence| precedence.gap.is_positive())
     }
 }
 
