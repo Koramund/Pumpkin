@@ -5,6 +5,7 @@ use std::rc::Rc;
 use super::insertion;
 use super::removal;
 use crate::basic_types::PropagationStatusCP;
+use crate::containers::StorageKey;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
 use crate::engine::propagation::contexts::StatefulPropagationContext;
 use crate::engine::propagation::EnqueueDecision;
@@ -14,6 +15,7 @@ use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::variables::IntegerVariable;
+use crate::engine::DomainEvents;
 use crate::engine::IntDomainEvent;
 use crate::predicates::PropositionalConjunction;
 use crate::propagators::create_time_table_over_interval_from_scratch;
@@ -374,6 +376,10 @@ impl<Var: IntegerVariable + 'static, const SYNCHRONISE: bool> Propagator
         local_id: LocalId,
         event: OpaqueDomainEvent,
     ) -> EnqueueDecision {
+        if local_id.index() >= self.parameters.tasks.len() {
+            pumpkin_assert_simple!(self.parameters.options.propagate_disjunctive);
+            return EnqueueDecision::Enqueue;
+        }
         let updated_task = Rc::clone(&self.parameters.tasks[local_id.unpack() as usize]);
         // Note that we do not take into account the fact that the time-table could be outdated
         // here; the time-table can only become outdated due to backtracking which means that if the
@@ -416,6 +422,9 @@ impl<Var: IntegerVariable + 'static, const SYNCHRONISE: bool> Propagator
         local_id: LocalId,
         event: OpaqueDomainEvent,
     ) {
+        if local_id.index() >= self.parameters.tasks.len() {
+            return;
+        }
         pumpkin_assert_simple!(self.parameters.options.incremental_backtracking);
 
         let updated_task = Rc::clone(&self.parameters.tasks[local_id.unpack() as usize]);
@@ -473,6 +482,27 @@ impl<Var: IntegerVariable + 'static, const SYNCHRONISE: bool> Propagator
             context,
             self.parameters.options.incremental_backtracking,
         );
+
+        // If we are propagating using time-table disjunctive reasoning then we should also be
+        // enqueued when the disjunctive literals become true
+        //
+        // We expect this to occur infrequently (and thus the overhead of time-table propagation
+        // should be low) but it could have consequences on some instances
+        if self.parameters.options.propagate_disjunctive {
+            if let Some(incompatibility_matrix) = &self.parameters.options.incompatibility_matrix {
+                let mut current_index = self.parameters.tasks.len();
+                for index in 0..incompatibility_matrix.len() {
+                    for other_index in index + 1..incompatibility_matrix.len() {
+                        let _ = context.register(
+                            incompatibility_matrix[index][other_index],
+                            DomainEvents::BOUNDS,
+                            LocalId::from(current_index as u32),
+                        );
+                        current_index += 1;
+                    }
+                }
+            }
+        }
 
         // First we store the bounds in the parameters
         self.updatable_structures
