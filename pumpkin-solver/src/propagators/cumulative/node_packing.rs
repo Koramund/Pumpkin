@@ -425,6 +425,8 @@ pub(crate) struct NodePackingPropagator<Var> {
     statistics: NodePackingStatistics,
 
     remaining: Vec<usize>,
+    sorted_intervals_by_decreasing_lct: Vec<(usize, (i32, i32))>,
+    intervals: Vec<(i32, i32)>,
 }
 
 #[derive(Clone, Debug)]
@@ -464,6 +466,8 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
             statistics: NodePackingStatistics::default(),
 
             remaining: Vec::with_capacity(num_tasks),
+            sorted_intervals_by_decreasing_lct: Vec::with_capacity(num_tasks),
+            intervals: Vec::with_capacity(num_tasks),
         }
     }
 
@@ -471,27 +475,32 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
         &mut self,
         context: &mut PropagationContextMut<'_>,
     ) -> Result<Option<Vec<usize>>, EmptyDomain> {
-        let intervals = self
-            .parameters
+        self.intervals.clear();
+        self.sorted_intervals_by_decreasing_lct.clear();
+        self.parameters
             .tasks
             .iter()
-            .map(|task| {
-                (
+            .enumerate()
+            .for_each(|(index, task)| {
+                let interval = (
                     context.lower_bound(&task.start_variable),
                     context.upper_bound(&task.start_variable) + task.processing_time,
-                )
-            })
-            .collect_vec();
+                );
+                self.intervals.push(interval);
+                self.sorted_intervals_by_decreasing_lct
+                    .push((index, interval));
+            });
+
         // Try finding a conflicting *pair* of tasks
-        for (index_lhs, (start_lhs, finish_lhs)) in intervals.iter().enumerate() {
+        for (index_lhs, (start_lhs, finish_lhs)) in self.intervals.iter().enumerate() {
             let lhs = &self.parameters.tasks[index_lhs];
-            for (index_rhs, (start_rhs, finish_rhs)) in intervals.iter().enumerate() {
+            for (index_rhs, (start_rhs, finish_rhs)) in self.intervals.iter().enumerate() {
                 if index_rhs == index_lhs {
                     continue;
                 }
                 let rhs = &self.parameters.tasks[index_rhs];
 
-                if Self::are_disjoint(&self.parameters, context, lhs, rhs, &intervals, true)?
+                if Self::are_disjoint(&self.parameters, context, lhs, rhs, &self.intervals, true)?
                     && lhs.processing_time + rhs.processing_time
                         > finish_rhs.max(finish_lhs) - start_lhs.min(start_rhs)
                 {
@@ -499,21 +508,19 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                 }
             }
         }
-        // Run a greedy heuristic from all intervals in reverse chronological order
-        let sorted_intervals = intervals
-            .iter()
-            .enumerate()
-            .sorted_by_key(|(_, (_, finish))| -finish)
-            .collect_vec();
+        // We sort the intervals by decreasing lct
+        self.sorted_intervals_by_decreasing_lct
+            .sort_unstable_by_key(|(_, (_, finish))| -finish);
+
         for (iter_index, (seed_index, (mut start, mut finish))) in
-            sorted_intervals.iter().enumerate()
+            self.sorted_intervals_by_decreasing_lct.iter().enumerate()
         {
             self.remaining.clear();
             let mut duration_remaining = 0;
             let mut duration_clique = self.parameters.tasks[*seed_index].processing_time;
 
             let mut clique = vec![*seed_index];
-            sorted_intervals[iter_index + 1..]
+            self.sorted_intervals_by_decreasing_lct[iter_index + 1..]
                 .iter()
                 .for_each(|(remaining_index, _)| {
                     duration_remaining += self.parameters.tasks[*remaining_index].processing_time;
@@ -531,28 +538,33 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                 let mut next_value: Option<(i32, i32, i32)> = None;
 
                 self.remaining.retain(|&remaining_ix| {
+                    if duration_remaining <= finish - start {
+                        // TODO: Better short-circuiting
+                        // We will only be removing elements from here on out so we can simply
+                        // short-circuit here
+                        return false;
+                    }
                     let result = !clique.contains(&remaining_ix)
                         && Self::are_disjoint(
                             &self.parameters,
                             context,
                             last_selected,
                             &self.parameters.tasks[remaining_ix],
-                            &intervals,
+                            &self.intervals,
                             false,
                         )
                         .expect("Should not be an error here");
 
                     if !result {
-                        // TODO: We could already short-circuit here
                         duration_remaining -= self.parameters.tasks[remaining_ix].processing_time;
                     } else {
                         // Choose the interval that is not disconnected from [start, finish)
                         // and minimizes the length added to the interval, breaking ties
                         // in favor of intervals with longer durations.
-                        let (rem_start, rem_finish) = intervals[remaining_ix];
+                        let (rem_start, rem_finish) = self.intervals[remaining_ix];
                         if rem_start <= finish && rem_finish >= start {
-                            let new_length = finish.max(intervals[remaining_ix].1)
-                                - start.min(intervals[remaining_ix].0);
+                            let new_length = finish.max(self.intervals[remaining_ix].1)
+                                - start.min(self.intervals[remaining_ix].0);
                             let new_duration = self.parameters.tasks[remaining_ix].processing_time;
                             let new_element = (
                                 new_length,
@@ -584,15 +596,15 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                             .remaining
                             .iter()
                             .filter(|&&remaining_ix| {
-                                let (rem_start, rem_finish) = intervals[remaining_ix];
+                                let (rem_start, rem_finish) = self.intervals[remaining_ix];
                                 if rem_start > finish || rem_finish < start {
                                     return false;
                                 }
                                 true
                             })
                             .min_by_key(|&&remaining_ix| {
-                                let new_length = finish.max(intervals[remaining_ix].1)
-                                    - start.min(intervals[remaining_ix].0);
+                                let new_length = finish.max(self.intervals[remaining_ix].1)
+                                    - start.min(self.intervals[remaining_ix].0);
                                 let new_duration =
                                     self.parameters.tasks[remaining_ix].processing_time;
                                 (
@@ -605,8 +617,8 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                 );
                 if let Some(next_ix) = next_ix {
                     clique.push(next_ix);
-                    start = start.min(intervals[next_ix].0);
-                    finish = finish.max(intervals[next_ix].1);
+                    start = start.min(self.intervals[next_ix].0);
+                    finish = finish.max(self.intervals[next_ix].1);
                     last_selected = &self.parameters.tasks[next_ix];
                     duration_clique += last_selected.processing_time;
                 } else {
