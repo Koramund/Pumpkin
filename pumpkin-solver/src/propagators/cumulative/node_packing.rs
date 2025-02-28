@@ -333,8 +333,7 @@ impl BoundDomain {
                             other.lower_bound >= equality_constant + self.processing_time as i32
                         );
                         pumpkin_assert_simple!(
-                            self.upper_bound
-                                >= not_equal_constant - self.processing_time as i32 + 1
+                            self.upper_bound > not_equal_constant - self.processing_time as i32
                         );
                         conjunction!(
                             [other_domain_id >= equality_constant + self.processing_time as i32]

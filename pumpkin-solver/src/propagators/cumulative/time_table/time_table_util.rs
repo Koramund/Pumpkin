@@ -341,16 +341,15 @@ fn disjunctive_propagation<Var: IntegerVariable + 'static>(
 ) -> PropagationStatusCP {
     if context.lower_bound(&first_task.start_variable) + first_task.processing_time
         > context.lower_bound(&second_task.start_variable)
-        && context.lower_bound(&first_task.start_variable) + first_task.processing_time - 1
-            >= context.lower_bound(&second_task.start_variable)
+        && context.lower_bound(&first_task.start_variable) + first_task.processing_time
+            > context.lower_bound(&second_task.start_variable)
         && context.upper_bound(&first_task.start_variable)
-            <= context.lower_bound(&second_task.start_variable) + second_task.processing_time - 1
+            < context.lower_bound(&second_task.start_variable) + second_task.processing_time
     {
         statistics.number_of_propagations_disjunctive_reasoning += 1;
         pumpkin_assert_simple!(
             context.upper_bound(&first_task.start_variable)
-                <= context.lower_bound(&second_task.start_variable) + second_task.processing_time
-                    - 1
+                < context.lower_bound(&second_task.start_variable) + second_task.processing_time
         );
         context.set_lower_bound(
             &second_task.start_variable,
@@ -514,8 +513,8 @@ fn find_disjointness<Var: IntegerVariable + 'static>(
                             task.start_variable.clone(),
                             &other_bound_domain,
                             other_task.start_variable.clone(),
-                            &time_table[*profiles_contributing_to_disjointness.first().unwrap()],
-                            &time_table[*profiles_contributing_to_disjointness.last().unwrap()],
+                            time_table[*profiles_contributing_to_disjointness.first().unwrap()],
+                            time_table[*profiles_contributing_to_disjointness.last().unwrap()],
                         );
 
                         let len_before = explanation.len();

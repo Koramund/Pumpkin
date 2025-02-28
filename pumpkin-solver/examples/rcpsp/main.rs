@@ -360,6 +360,7 @@ fn run() -> SchedulingResult<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments, reason = "Should be refactored")]
 fn create_instance_statistics(
     solver: &mut Solver,
     rcpsp_instance: &RcpspInstance,
@@ -372,72 +373,72 @@ fn create_instance_statistics(
     possible_found: usize,
     found_resource_infeasible_per_resource: Vec<usize>,
 ) {
-    // log_statistic(
-    //     "orderStrength",
-    //     calculate_order_strength(precedences, rcpsp_instance.processing_times.len() as u32),
-    // );
-    // for (resource_index, resource_strength) in calculate_resource_strength(
-    //     &rcpsp_instance.resource_requirements,
-    //     &rcpsp_instance.resource_capacities,
-    //     solver,
-    //     start_variables,
-    //     &rcpsp_instance.processing_times,
-    //     horizon,
-    // )
-    // .iter()
-    // .enumerate()
-    // {
-    //     log_statistic(
-    //         format!("resourceStrengthResouce{resource_index}"),
-    //         resource_strength,
-    //     )
-    // }
+    log_statistic(
+        "orderStrength",
+        calculate_order_strength(precedences, rcpsp_instance.processing_times.len() as u32),
+    );
+    for (resource_index, resource_strength) in calculate_resource_strength(
+        &rcpsp_instance.resource_requirements,
+        &rcpsp_instance.resource_capacities,
+        solver,
+        start_variables,
+        &rcpsp_instance.processing_times,
+        horizon,
+    )
+    .iter()
+    .enumerate()
+    {
+        log_statistic(
+            format!("resourceStrengthResouce{resource_index}"),
+            resource_strength,
+        )
+    }
 
-    // log_statistic(
-    //     "disjunctionRatio",
-    //     calculate_disjunction_ratio(
-    //         precedences,
-    //         rcpsp_instance.processing_times.len() as u32,
-    //         &rcpsp_instance.resource_requirements,
-    //         &rcpsp_instance.resource_capacities,
-    //     ),
-    // );
+    log_statistic(
+        "disjunctionRatio",
+        calculate_disjunction_ratio(
+            precedences,
+            rcpsp_instance.processing_times.len() as u32,
+            &rcpsp_instance.resource_requirements,
+            &rcpsp_instance.resource_capacities,
+        ),
+    );
 
-    // log_statistic(
-    //     "processRange",
-    //     calculate_process_range(&rcpsp_instance.processing_times),
-    // );
+    log_statistic(
+        "processRange",
+        calculate_process_range(&rcpsp_instance.processing_times),
+    );
 
-    // log_statistic(
-    //     "mandatoryRatio",
-    //     calculate_mandatory_ratio(start_variables, &rcpsp_instance.processing_times, solver),
-    // );
-    // for (index, mandatory_constrainedness) in calculate_mandatory_constrainedness(
-    //     start_variables,
-    //     &rcpsp_instance.processing_times,
-    //     &rcpsp_instance.resource_requirements,
-    //     solver,
-    //     &rcpsp_instance.resource_capacities,
-    //     horizon,
-    // )
-    // .into_iter()
-    // .enumerate()
-    // {
-    //     log_statistic(
-    //         format!("mandatoryConstrainednessResource{index}"),
-    //         mandatory_constrainedness,
-    //     )
-    // }
+    log_statistic(
+        "mandatoryRatio",
+        calculate_mandatory_ratio(start_variables, &rcpsp_instance.processing_times, solver),
+    );
+    for (index, mandatory_constrainedness) in calculate_mandatory_constrainedness(
+        start_variables,
+        &rcpsp_instance.processing_times,
+        &rcpsp_instance.resource_requirements,
+        solver,
+        &rcpsp_instance.resource_capacities,
+        horizon,
+    )
+    .into_iter()
+    .enumerate()
+    {
+        log_statistic(
+            format!("mandatoryConstrainednessResource{index}"),
+            mandatory_constrainedness,
+        )
+    }
 
-    // log_statistic(
-    //     "freeFloatRatio",
-    //     calculate_free_float_ratio(
-    //         precedences,
-    //         &rcpsp_instance.processing_times,
-    //         start_variables,
-    //         solver,
-    //     ),
-    // );
+    log_statistic(
+        "freeFloatRatio",
+        calculate_free_float_ratio(
+            precedences,
+            &rcpsp_instance.processing_times,
+            start_variables,
+            solver,
+        ),
+    );
 
     for (index, resource_constrainedness) in calculate_resource_constrainedness(
         &rcpsp_instance.resource_requirements,
@@ -573,6 +574,7 @@ fn add_precedences(
     }
 }
 
+#[allow(clippy::type_complexity, reason = "Should be refactored")]
 fn create_incompatability_matrix(
     solver: &mut Solver,
     rcpsp_instance: &RcpspInstance,
@@ -693,10 +695,9 @@ fn create_variables(
                     .dependencies
                     .values()
                     .flatten()
-                    .filter_map(|precedence| {
-                        (precedence.predecessor == ix).then(|| {
-                            max(precedence.gap, rcpsp_instance.processing_times[ix] as i32)
-                        })
+                    .filter(|precedence| precedence.predecessor == ix)
+                    .map(|precedence| {
+                        max(precedence.gap, rcpsp_instance.processing_times[ix] as i32)
                     })
                     .max()
                     .unwrap_or_default()

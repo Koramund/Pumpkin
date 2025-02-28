@@ -33,7 +33,7 @@ impl PrecedenceClosure {
         }?;
         let mut precedences = BTreeMap::<usize, BTreeMap<usize, Precedence>>::new();
         for precedence_entry in precedence_closure {
-            precedences
+            let _ = precedences
                 .entry(precedence_entry.successor)
                 .or_default()
                 .insert(precedence_entry.predecessor, precedence_entry);
@@ -46,8 +46,8 @@ impl PrecedenceClosure {
 
     pub(crate) fn num_edges(&self) -> usize {
         self.precedences
-            .iter()
-            .map(|(_, precedences)| {
+            .values()
+            .map(|precedences| {
                 precedences
                     .iter()
                     .filter(|(_, precedence)| {

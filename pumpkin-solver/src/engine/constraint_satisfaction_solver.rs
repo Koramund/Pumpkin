@@ -691,7 +691,7 @@ impl ConstraintSatisfactionSolver {
     ///     }
     /// }
     /// ```
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "No core extraction")]
     pub fn extract_clausal_core(&mut self, _brancher: &mut impl Brancher) -> CoreExtractionResult {
         todo!()
     }

@@ -260,7 +260,7 @@ impl NogoodPropagator {
                             let explanation: PropositionalConjunction = context
                                 .semantic_minimiser
                                 .maximise(
-                                    &mut explanation.predicates_in_conjunction,
+                                    &explanation.predicates_in_conjunction,
                                     context.assignments,
                                 )
                                 .into();
