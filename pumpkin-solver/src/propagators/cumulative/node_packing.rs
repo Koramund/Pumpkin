@@ -492,13 +492,21 @@ impl<Var: IntegerVariable + Clone + 'static> NodePackingPropagator<Var> {
                 }
             }
         }
-        // Run a greedy heuristic from all intervals
-        for (seed_index, (mut start, mut finish)) in intervals.iter().enumerate() {
-            let mut clique = vec![seed_index];
-            let mut remaining = (0..self.parameters.tasks.len())
-                .filter(|&ix| ix != seed_index)
+        // Run a greedy heuristic from all intervals in reverse chronological order
+        let sorted_intervals = intervals
+            .iter()
+            .enumerate()
+            .sorted_by_key(|(_, (_, finish))| -finish)
+            .collect_vec();
+        for (iter_index, (seed_index, (mut start, mut finish))) in
+            sorted_intervals.iter().enumerate()
+        {
+            let mut clique = vec![*seed_index];
+            let mut remaining = &mut sorted_intervals[iter_index + 1..]
+                .iter()
+                .map(|(remaining_index, _)| *remaining_index)
                 .collect_vec();
-            let mut last_selected = &self.parameters.tasks[seed_index];
+            let mut last_selected = &self.parameters.tasks[*seed_index];
             loop {
                 // Keep the intervals that not in the clique and can be added to a clique
                 //
