@@ -145,6 +145,8 @@ fn run() -> SchedulingResult<()> {
             args.instance_path.display(),
         ));
     }
+    println!("Command-line arguments: {args:?}");
+
     let instance_path = args
         .instance_path
         .to_str()
