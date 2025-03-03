@@ -28,6 +28,9 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
     lower_bound_left_hand_side: TrailedInt,
     /// The value at index `i` is the bound for `x[i]`.
     current_bounds: Box<[TrailedInt]>,
+    // Represents the partial sums.
+    partials: Box<[Var]>,
+    multiplicity: usize,
 }
 
 impl<Var> LinearLessOrEqualPropagator<Var>
@@ -40,15 +43,32 @@ where
             .collect_vec()
             .into();
 
+        // let multiplicity = 1;
+
+        // // Create an integer variable with value 3.
+        // let h = DomainId::new(3);
+        //
+        // let partials = (0..x.len()/multiplicity)
+        //     .map(|_| TrailedInt::default())
+        //     .collect_vec()
+        //     .into();
+
         // incremental state will be properly initialized in `Propagator::initialise_at_root`.
         LinearLessOrEqualPropagator::<Var> {
             x,
             c,
             lower_bound_left_hand_side: TrailedInt::default(),
             current_bounds,
+            partials: Box::new([]),
+            multiplicity: 1,
         }
     }
 
+    // Basically the explanation is not necessarily optimal. It just marks the current context as wrong.
+    // Certain parts of that context may also utilize different lowerbouds as wrong conclusions. x >= 2 -> x >= 1.
+
+    // Will need to be altered to more concretely supply a >= n as the reason.
+    
     fn create_conflict_reason(&self, context: PropagationContext) -> PropositionalConjunction {
         self.x
             .iter()
@@ -61,20 +81,50 @@ impl<Var: 'static> Propagator for LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
-    fn initialise_at_root(
-        &mut self,
-        context: &mut PropagatorInitialisationContext,
-    ) -> Result<(), PropositionalConjunction> {
+    // This function needs to be altered to create a series of variables a_i
+    fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
         let mut lower_bound_left_hand_side = 0_i64;
+        // this registers the propagator to be notified of domain changes
+
+        let mut partial_lowers: Vec<i64> = vec![0_i64];
+
         self.x.iter().enumerate().for_each(|(i, x_i)| {
             let _ = context.register(
                 x_i.clone(),
                 DomainEvents::LOWER_BOUND,
                 LocalId::from(i as u32),
             );
+
+            // saves the lower bound for the previous three values.
+            if (i % self.multiplicity) == 0 && i > 0 {
+                partial_lowers.push(lower_bound_left_hand_side)
+            }
+
+
+            // updates lower bound according to the default variables
             lower_bound_left_hand_side += context.lower_bound(x_i) as i64;
+
+
+
+
+            // used for internal tracking of the lowerbounds of each variable.
             self.current_bounds[i] = context.new_stateful_integer(context.lower_bound(x_i) as i64);
         });
+
+        // one extra push in case we left one out.
+        if self.x.len() % self.multiplicity != 0 {
+            partial_lowers.push(lower_bound_left_hand_side);
+        }
+
+        // convert partials_lower into partials by creating new variables via context.create_new_integer_variable
+        self.partials = partial_lowers.iter()
+            // potentially risky i32 cast.
+            .map(|&value| context.create_new_integer_variable(value as i32, self.c))
+            .collect_vec()
+            .into();
+
+
+        // Represents the sum of the x_i sums.
         self.lower_bound_left_hand_side = context.new_stateful_integer(lower_bound_left_hand_side);
 
         if let Some(conjunction) = self.detect_inconsistency(context.as_stateful_readonly()) {
