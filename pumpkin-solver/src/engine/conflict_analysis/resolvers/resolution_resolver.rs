@@ -53,10 +53,12 @@ pub(crate) enum AnalysisMode {
     OneUIP,
     /// An alternative to 1-UIP which stops as soon as the learned nogood only creates decision
     /// predicates.
+    #[allow(dead_code, reason = "No core extraction")]
     AllDecision,
 }
 
 impl ResolutionResolver {
+    #[allow(dead_code, reason = "No core extraction")]
     pub(crate) fn with_mode(mode: AnalysisMode) -> Self {
         Self {
             mode,
@@ -66,14 +68,35 @@ impl ResolutionResolver {
 }
 
 impl ConflictResolver for ResolutionResolver {
-    fn resolve_conflict(&mut self, context: &mut ConflictAnalysisContext) -> Option<LearnedNogood> {
+    fn resolve_conflict(
+        &mut self,
+        context: &mut ConflictAnalysisContext,
+    ) -> Result<Option<LearnedNogood>, ()> {
         self.clean_up();
 
-        // Initialise the data structures with the conflict nogood.
-        for predicate in context
-            .get_conflict_nogood(context.is_completing_proof)
+        let conflict_nogood = context.get_conflict_nogood(context.is_completing_proof);
+
+        // Means that only root-level predicates are present at the current decision level
+        if conflict_nogood.is_empty() {
+            return Err(());
+        }
+
+        let maximum_decision_level_in_conflict = conflict_nogood
             .iter()
-        {
+            .filter_map(|predicate| {
+                pumpkin_assert_simple!(context.assignments.is_predicate_satisfied(*predicate));
+                context
+                    .assignments
+                    .get_decision_level_for_predicate(predicate)
+            })
+            .max()
+            .unwrap_or(context.assignments.get_decision_level());
+        if maximum_decision_level_in_conflict < context.assignments.get_decision_level() {
+            context.backtrack(maximum_decision_level_in_conflict);
+        }
+
+        // Initialise the data structures with the conflict nogood.
+        for predicate in conflict_nogood.iter() {
             self.add_predicate_to_conflict_nogood(
                 *predicate,
                 context.assignments,
@@ -259,8 +282,7 @@ impl ConflictResolver for ResolutionResolver {
                 );
             }
         }
-
-        Some(self.extract_final_nogood(context))
+        Ok(Some(self.extract_final_nogood(context)))
     }
 
     fn process(

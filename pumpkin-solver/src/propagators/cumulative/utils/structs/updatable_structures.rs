@@ -3,11 +3,23 @@ use std::rc::Rc;
 use super::CumulativeParameters;
 use super::Task;
 use super::UpdatedTaskInfo;
+use crate::basic_types::moving_averages::CumulativeMovingAverage;
 use crate::containers::SparseSet;
+use crate::create_statistics_struct;
 use crate::engine::propagation::PropagationContext;
 use crate::engine::propagation::ReadDomains;
 use crate::pumpkin_assert_moderate;
 use crate::variables::IntegerVariable;
+
+create_statistics_struct!(CumulativeStatistics {
+    num_disjointess_found: usize,
+    average_number_of_profiles_in_disjointness: CumulativeMovingAverage<usize>,
+    average_explanation_size_when_finding_disjointness: CumulativeMovingAverage<usize>,
+    average_number_of_elements_removed_when_maximising: CumulativeMovingAverage<usize>,
+    average_number_of_tasks_removed_by_taking: CumulativeMovingAverage<usize>,
+
+    number_of_propagations_disjunctive_reasoning: usize,
+});
 
 /// Structures which are adjusted during search; either due to incrementality or to keep track of
 /// bounds.
@@ -24,7 +36,9 @@ pub(crate) struct UpdatableStructures<Var> {
     /// The tasks which have been updated since the last iteration
     updated_tasks: SparseSet<Rc<Task<Var>>>,
     /// The tasks which are unfixed
-    unfixed_tasks: SparseSet<Rc<Task<Var>>>,
+    pub(crate) unfixed_tasks: SparseSet<Rc<Task<Var>>>,
+
+    pub(crate) statistics: CumulativeStatistics,
 }
 
 impl<Var: IntegerVariable + 'static> UpdatableStructures<Var> {
@@ -38,6 +52,7 @@ impl<Var: IntegerVariable + 'static> UpdatableStructures<Var> {
             updates: vec![],
             updated_tasks,
             unfixed_tasks,
+            statistics: CumulativeStatistics::default(),
         }
     }
 

@@ -5,6 +5,11 @@
 use std::cmp::max;
 use std::rc::Rc;
 
+use log::info;
+use range_collections::RangeSet;
+use range_collections::RangeSet2;
+
+use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::PropagationStatusCP;
 use crate::engine::propagation::EnqueueDecision;
 use crate::engine::propagation::PropagationContext;
@@ -13,14 +18,21 @@ use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::ReadDomains;
 use crate::engine::variables::IntegerVariable;
+use crate::predicate;
+use crate::predicates::PropositionalConjunction;
+use crate::propagators::cumulative::time_table::explanations::big_step::create_big_step_explanation;
 use crate::propagators::cumulative::time_table::propagation_handler::CumulativePropagationHandler;
+use crate::propagators::BoundDomain;
 use crate::propagators::CumulativeParameters;
+use crate::propagators::CumulativeStatistics;
 use crate::propagators::ResourceProfile;
 use crate::propagators::Task;
 use crate::propagators::UpdatableStructures;
 use crate::propagators::UpdatedTaskInfo;
 use crate::pumpkin_assert_extreme;
 use crate::pumpkin_assert_moderate;
+use crate::pumpkin_assert_simple;
+use crate::variables::Literal;
 
 /// The result of [`should_enqueue`], contains the [`EnqueueDecision`] whether the propagator should
 /// currently be enqueued and potentially the updated [`Task`] (in the form of a
@@ -246,12 +258,14 @@ fn propagate_single_profiles<'a, Var: IntegerVariable + 'static>(
     updatable_structures: &mut UpdatableStructures<Var>,
     parameters: &CumulativeParameters<Var>,
 ) -> PropagationStatusCP {
+    let time_table = time_table.collect::<Vec<_>>();
+
     // We create the structure responsible for propagations and explanations
     let mut propagation_handler =
         CumulativePropagationHandler::new(parameters.options.explanation_type);
 
     // Then we go over all of the profiles in the time-table
-    'profile_loop: for profile in time_table {
+    'profile_loop: for profile in time_table.iter() {
         // We indicate to the propagation handler that we cannot re-use an existing profile
         // explanation
         propagation_handler.next_profile();
@@ -310,7 +324,269 @@ fn propagate_single_profiles<'a, Var: IntegerVariable + 'static>(
             }
         }
     }
+
+    find_disjointness(updatable_structures, context, time_table, parameters)?;
+
     updatable_structures.restore_temporarily_removed();
+    Ok(())
+}
+
+fn disjunctive_propagation<Var: IntegerVariable + 'static>(
+    context: &mut PropagationContextMut,
+    first_task: &Task<Var>,
+    second_task: &Task<Var>,
+    disjointness_literal: Literal,
+    statistics: &mut CumulativeStatistics,
+    should_stop: bool,
+) -> PropagationStatusCP {
+    if context.lower_bound(&first_task.start_variable) + first_task.processing_time
+        > context.lower_bound(&second_task.start_variable)
+        && context.lower_bound(&first_task.start_variable) + first_task.processing_time
+            > context.lower_bound(&second_task.start_variable)
+        && context.upper_bound(&first_task.start_variable)
+            < context.lower_bound(&second_task.start_variable) + second_task.processing_time
+    {
+        statistics.number_of_propagations_disjunctive_reasoning += 1;
+        pumpkin_assert_simple!(
+            context.upper_bound(&first_task.start_variable)
+                < context.lower_bound(&second_task.start_variable) + second_task.processing_time
+        );
+        context.set_lower_bound(
+            &second_task.start_variable,
+            context.lower_bound(&first_task.start_variable) + first_task.processing_time,
+            std::iter::once(disjointness_literal.get_true_predicate())
+                .chain(
+                    [
+                        predicate!(
+                            first_task.start_variable
+                                >= context.lower_bound(&first_task.start_variable)
+                        ),
+                        predicate!(
+                            first_task.start_variable
+                                <= context.lower_bound(&second_task.start_variable)
+                                    + second_task.processing_time
+                                    - 1
+                        ),
+                        predicate!(
+                            second_task.start_variable
+                                >= context.lower_bound(&second_task.start_variable)
+                        ),
+                    ]
+                    .into_iter(),
+                )
+                .collect::<PropositionalConjunction>(),
+        )?;
+    } else if !should_stop {
+        disjunctive_propagation(
+            context,
+            second_task,
+            first_task,
+            disjointness_literal,
+            statistics,
+            true,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn propagate_disjunctive_timetable<Var: IntegerVariable + 'static>(
+    context: &mut PropagationContextMut,
+    task: &Rc<Task<Var>>,
+    other_task: &Rc<Task<Var>>,
+    disjointness_literal: Literal,
+    statistics: &mut CumulativeStatistics,
+) -> PropagationStatusCP {
+    // First we propagate the lower-bounds
+    disjunctive_propagation(
+        context,
+        task,
+        other_task,
+        disjointness_literal,
+        statistics,
+        false,
+    )?;
+    // Then we propagate the upper-bounds (by reversing the variable (i.e. EST becomes LCT and LCT
+    // becomes EST))
+    disjunctive_propagation(
+        context,
+        &task.reverse(),
+        &other_task.reverse(),
+        disjointness_literal,
+        statistics,
+        false,
+    )
+}
+
+fn find_disjointness<Var: IntegerVariable + 'static>(
+    updatable_structures: &mut UpdatableStructures<Var>,
+    context: &mut PropagationContextMut,
+    time_table: Vec<&ResourceProfile<Var>>,
+    parameters: &CumulativeParameters<Var>,
+) -> PropagationStatusCP {
+    if let Some(incompatibility_matrix) = &parameters.options.incompatibility_matrix {
+        for task in parameters.tasks.iter() {
+            for other_task in parameters.tasks.iter() {
+                if task.id <= other_task.id {
+                    continue;
+                }
+                if context.is_literal_true(
+                    &incompatibility_matrix[parameters.mapping[task.id]]
+                        [parameters.mapping[other_task.id]],
+                ) {
+                    if parameters.options.propagate_disjunctive {
+                        propagate_disjunctive_timetable(
+                            context,
+                            task,
+                            other_task,
+                            incompatibility_matrix[parameters.mapping[task.id]]
+                                [parameters.mapping[other_task.id]],
+                            &mut updatable_structures.statistics,
+                        )?;
+                    }
+                    continue;
+                }
+
+                let task_range: RangeSet2<i32> = RangeSet::from(
+                    context.lower_bound(&task.start_variable)
+                        ..context.upper_bound(&task.start_variable) + task.processing_time,
+                );
+                let other_task_range: RangeSet2<i32> = RangeSet::from(
+                    context.lower_bound(&other_task.start_variable)
+                        ..context.upper_bound(&other_task.start_variable)
+                            + other_task.processing_time,
+                );
+                let mut intersection: RangeSet2<i32> = task_range.intersection(&other_task_range);
+                if intersection.is_empty() {
+                    continue;
+                }
+
+                let mut profiles_contributing_to_disjointness = Vec::new();
+                let mut num_profile_tasks_before = 0;
+                'time_table_loop: for (index, profile) in time_table.iter().enumerate() {
+                    let profile_range: RangeSet2<i32> =
+                        RangeSet::from(profile.start..profile.end + 1);
+                    if profile_range.intersects(&intersection)
+                        && task.resource_usage + other_task.resource_usage + profile.height
+                            > parameters.capacity
+                        && !has_mandatory_part_in_interval(
+                            context.as_readonly(),
+                            task,
+                            profile.start,
+                            profile.end,
+                        )
+                        && !has_mandatory_part_in_interval(
+                            context.as_readonly(),
+                            other_task,
+                            profile.start,
+                            profile.end,
+                        )
+                    {
+                        num_profile_tasks_before += profile.profile_tasks.len();
+                        profiles_contributing_to_disjointness.push(index);
+                        intersection.difference_with(&profile_range);
+                    }
+
+                    if intersection.is_empty() {
+                        updatable_structures.statistics.num_disjointess_found += 1;
+                        updatable_structures
+                            .statistics
+                            .average_number_of_profiles_in_disjointness
+                            .add_term(profiles_contributing_to_disjointness.len());
+                        // context.assign_literal(literal, value, reason);
+                        // predicate!(x >= lb_x) /\ predicate!(x <= ub_x) /\ predicate!(y >= lb_y)
+                        // /\ predicate!(y <= ub_y) /\ expl(all_profiles
+                        // which removed time-points)
+                        let lb_x = context.lower_bound(&task.start_variable);
+                        let ub_x = context.upper_bound(&task.start_variable);
+                        let lb_y = context.lower_bound(&other_task.start_variable);
+                        let ub_y = context.upper_bound(&other_task.start_variable);
+
+                        let bound_domain =
+                            BoundDomain::new(lb_x, ub_x, task.processing_time as u32);
+                        let other_bound_domain =
+                            BoundDomain::new(lb_y, ub_y, other_task.processing_time as u32);
+
+                        pumpkin_assert_simple!(bound_domain.overlaps_with(&other_bound_domain));
+
+                        let mut explanation = bound_domain.get_explanation_for_overlap_cumulative(
+                            task.start_variable.clone(),
+                            &other_bound_domain,
+                            other_task.start_variable.clone(),
+                            time_table[*profiles_contributing_to_disjointness.first().unwrap()],
+                            time_table[*profiles_contributing_to_disjointness.last().unwrap()],
+                        );
+
+                        let len_before = explanation.len();
+                        let profile_explanation = create_big_step_explanation(
+                            task.resource_usage,
+                            other_task.resource_usage,
+                            parameters.capacity,
+                            profiles_contributing_to_disjointness
+                                .iter()
+                                .map(|profile_index| time_table[*profile_index]),
+                        );
+                        explanation.extend(profile_explanation);
+
+                        updatable_structures
+                            .statistics
+                            .average_number_of_tasks_removed_by_taking
+                            .add_term(
+                                num_profile_tasks_before - (explanation.len() / 2 - len_before),
+                            );
+
+                        let size_before = explanation.len();
+                        explanation = context
+                            .semantic_minimiser
+                            .maximise(&explanation.predicates_in_conjunction, context.assignments)
+                            .into();
+                        updatable_structures
+                            .statistics
+                            .average_number_of_elements_removed_when_maximising
+                            .add_term(size_before - explanation.len());
+
+                        info!(
+                        "Resource capacity: {} - Task 1: [{}, {}) with resource usage {} - Task 2 [{}, {}) with resource usage {} were found to be disjoint due to {:?} - Explanation: {:?}",
+                        parameters.capacity,
+                        context.lower_bound(&task.start_variable),
+                        context.upper_bound(&task.start_variable) + task.processing_time,
+                        task.resource_usage,
+                        context.lower_bound(&other_task.start_variable),
+                        context.upper_bound(&other_task.start_variable)
+                            + other_task.processing_time,
+                        other_task.resource_usage,
+                        profiles_contributing_to_disjointness
+                            .iter()
+                            .map(|profile_index| &time_table[*profile_index])
+                            .collect::<Vec<_>>()
+                            , explanation
+                    );
+                        updatable_structures
+                            .statistics
+                            .average_explanation_size_when_finding_disjointness
+                            .add_term(explanation.len());
+                        context.assign_literal(
+                            &incompatibility_matrix[parameters.mapping[task.id]]
+                                [parameters.mapping[other_task.id]],
+                            true,
+                            explanation,
+                        )?;
+                        if parameters.options.propagate_disjunctive {
+                            propagate_disjunctive_timetable(
+                                context,
+                                task,
+                                other_task,
+                                incompatibility_matrix[parameters.mapping[task.id]]
+                                    [parameters.mapping[other_task.id]],
+                                &mut updatable_structures.statistics,
+                            )?;
+                        }
+                        break 'time_table_loop;
+                    }
+                }
+            }
+        }
+    }
     Ok(())
 }
 

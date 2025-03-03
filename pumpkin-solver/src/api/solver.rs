@@ -10,14 +10,16 @@ use crate::basic_types::HashSet;
 use crate::basic_types::Solution;
 use crate::branching::branchers::autonomous_search::AutonomousSearch;
 use crate::branching::branchers::independent_variable_value_brancher::IndependentVariableValueBrancher;
-use crate::branching::value_selection::RandomSplitter;
+use crate::branching::tie_breaking::InOrderTieBreaker;
+use crate::branching::value_selection::InDomainMin;
 #[cfg(doc)]
 use crate::branching::value_selection::ValueSelector;
-use crate::branching::variable_selection::RandomSelector;
+use crate::branching::variable_selection::Smallest;
 #[cfg(doc)]
 use crate::branching::variable_selection::VariableSelector;
 use crate::branching::Brancher;
 use crate::constraints::ConstraintPoster;
+use crate::containers::KeyedVec;
 use crate::engine::predicates::predicate::Predicate;
 use crate::engine::propagation::Propagator;
 use crate::engine::termination::TerminationCondition;
@@ -106,6 +108,19 @@ impl Default for Solver {
 }
 
 impl Solver {
+    pub fn add_incompatibility(
+        &mut self,
+        incompatibility_matrix: Option<Vec<Vec<Literal>>>,
+        mapping: Option<KeyedVec<DomainId, usize>>,
+        processing_times: Option<Vec<u32>>,
+    ) {
+        self.satisfaction_solver.add_incompatibility(
+            incompatibility_matrix,
+            mapping,
+            processing_times,
+        );
+    }
+
     /// Creates a solver with the provided [`SolverOptions`].
     pub fn with_options(solver_options: SolverOptions) -> Self {
         let satisfaction_solver = ConstraintSatisfactionSolver::new(solver_options);
@@ -489,6 +504,10 @@ impl Solver {
     pub fn default_brancher(&self) -> DefaultBrancher {
         DefaultBrancher::default_over_all_variables(&self.satisfaction_solver.assignments)
     }
+
+    pub fn blacklist_brancher(&self, blacklist: &[DomainId]) -> DefaultBrancher {
+        DefaultBrancher::default_with_blacklist(&self.satisfaction_solver.assignments, blacklist)
+    }
 }
 
 /// Proof logging methods
@@ -526,5 +545,10 @@ impl Solver {
 /// \[2\] E. Demirović, G. Chu, and P. J. Stuckey, ‘Solution-based phase saving for CP: A
 /// value-selection heuristic to simulate local search behavior in complete solvers’, in the
 /// proceedings of the Principles and Practice of Constraint Programming (CP 2018).
-pub type DefaultBrancher =
-    AutonomousSearch<IndependentVariableValueBrancher<DomainId, RandomSelector, RandomSplitter>>;
+pub type DefaultBrancher = AutonomousSearch<
+    IndependentVariableValueBrancher<
+        DomainId,
+        Smallest<DomainId, InOrderTieBreaker<DomainId, i32>>,
+        InDomainMin,
+    >,
+>;

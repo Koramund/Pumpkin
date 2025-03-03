@@ -75,6 +75,22 @@ impl<OtherBrancher: Brancher> AlternatingBrancher<OtherBrancher> {
         }
     }
 
+    pub fn with_blacklist(
+        solver: &Solver,
+        other_brancher: OtherBrancher,
+        blacklist: &[DomainId],
+        strategy: AlternatingStrategy,
+    ) -> Self {
+        Self {
+            even_number_of_solutions: true,
+            is_using_default_brancher: false,
+            other_brancher,
+            default_brancher: solver.blacklist_brancher(blacklist),
+            strategy,
+            has_considered_restart: false,
+        }
+    }
+
     /// Toggles which [`Brancher`] is used.
     fn toggle_brancher(&mut self) {
         self.is_using_default_brancher = !self.is_using_default_brancher

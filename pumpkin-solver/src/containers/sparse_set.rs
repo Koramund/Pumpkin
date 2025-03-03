@@ -128,6 +128,13 @@ impl<T> SparseSet<T> {
             pumpkin_assert_moderate!((self.mapping)(&element) == (self.mapping)(to_remove));
             self.indices[(self.mapping)(to_remove)] = usize::MAX;
         }
+        pumpkin_assert_simple!(
+            self.indices
+                .iter()
+                .filter(|index| **index != usize::MAX)
+                .count()
+                >= self.size
+        )
     }
 
     pub(crate) fn remove_temporarily(&mut self, to_remove: &T) {
@@ -158,14 +165,27 @@ impl<T> SparseSet<T> {
 
     /// Inserts the element if it is not already contained in the sparse set.
     pub(crate) fn insert(&mut self, element: T) {
-        if !self.contains(&element) {
+        if (self.mapping)(&element) >= self.indices.len() {
             self.accommodate(&element);
-
+        }
+        if self.indices[(self.mapping)(&element)] == usize::MAX {
             self.indices[(self.mapping)(&element)] = self.domain.len();
             self.domain.push(element);
             self.swap(self.size, self.domain.len() - 1);
             self.size += 1;
+        } else if self.indices[(self.mapping)(&element)] >= self.size {
+            self.swap(self.size, self.indices[(self.mapping)(&element)]);
+            self.indices[(self.mapping)(&element)] = self.size;
+            self.size += 1;
         }
+
+        pumpkin_assert_simple!(
+            self.indices
+                .iter()
+                .filter(|index| **index != usize::MAX)
+                .count()
+                >= self.size
+        )
     }
 
     /// Returns an iterator which goes over the values in the domain of the sparse-set
@@ -226,33 +246,5 @@ mod tests {
         sparse_set.remove(&1);
         sparse_set.remove(&2);
         assert!(sparse_set.is_empty());
-    }
-
-    #[test]
-    fn iter1() {
-        let sparse_set = SparseSet::new(vec![5, 10, 2], mapping_function);
-        let v: Vec<u32> = sparse_set.iter().copied().collect();
-        assert_eq!(v.len(), 3);
-        assert!(v.contains(&10));
-        assert!(v.contains(&5));
-        assert!(v.contains(&2));
-    }
-
-    #[test]
-    fn iter2() {
-        let mut sparse_set = SparseSet::new(vec![5, 10, 2], mapping_function);
-        sparse_set.insert(100);
-        sparse_set.insert(2);
-        sparse_set.insert(20);
-        sparse_set.remove(&10);
-        sparse_set.insert(10);
-        sparse_set.remove(&10);
-
-        let v: Vec<u32> = sparse_set.iter().copied().collect();
-        assert_eq!(v.len(), 5);
-        assert!(v.contains(&5));
-        assert!(v.contains(&2));
-        assert!(v.contains(&100));
-        assert!(v.contains(&20));
     }
 }

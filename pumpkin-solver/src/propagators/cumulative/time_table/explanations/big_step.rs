@@ -29,6 +29,33 @@ pub(crate) fn create_big_step_propagation_explanation<Var: IntegerVariable + 'st
         .collect()
 }
 
+pub(crate) fn create_big_step_explanation<'a, Var: IntegerVariable + 'static>(
+    r_a: i32,
+    r_b: i32,
+    capacity: i32,
+    profiles: impl IntoIterator<Item = &'a ResourceProfile<Var>> + 'a,
+) -> impl Iterator<Item = Predicate> + 'a {
+    profiles.into_iter().flat_map(move |profile| {
+        let mut resource_usage = 0;
+
+        let profile_explanation = profile
+            .profile_tasks
+            .iter()
+            .take_while(move |task| {
+                let result = resource_usage + r_a + r_b <= capacity;
+                resource_usage += task.resource_usage;
+                result
+            })
+            .flat_map(|task| {
+                [
+                    predicate!(task.start_variable >= profile.end - task.processing_time + 1),
+                    predicate!(task.start_variable <= profile.start),
+                ]
+            });
+        profile_explanation
+    })
+}
+
 /// Creates the conflict explanation using the big-step approach (see
 /// [`CumulativeExplanationType::BigStep`])
 pub(crate) fn create_big_step_conflict_explanation<Var: IntegerVariable + 'static>(

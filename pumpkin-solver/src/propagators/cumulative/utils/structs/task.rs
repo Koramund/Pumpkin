@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::engine::propagation::LocalId;
 use crate::variables::IntegerVariable;
+use crate::variables::TransformableVariable;
 
 /// Structure which stores the variables related to a task; for now, only the start times are
 /// assumed to be variable
@@ -31,6 +32,17 @@ impl<Var> Debug for Task<Var> {
 impl<Var: IntegerVariable + 'static> Task<Var> {
     pub(crate) fn get_id(task: &Rc<Task<Var>>) -> usize {
         task.id.unpack() as usize
+    }
+
+    pub(crate) fn reverse(
+        &self,
+    ) -> Task<<<Var as IntegerVariable>::AffineView as IntegerVariable>::AffineView> {
+        Task::<<<Var as IntegerVariable>::AffineView as IntegerVariable>::AffineView> {
+            start_variable: self.start_variable.offset(self.processing_time).scaled(-1),
+            processing_time: self.processing_time,
+            resource_usage: self.resource_usage,
+            id: self.id,
+        }
     }
 }
 

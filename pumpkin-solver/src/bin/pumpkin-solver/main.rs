@@ -552,6 +552,8 @@ fn run() -> PumpkinResult<()> {
                     args.cumulative_generate_sequence,
                     args.cumulative_propagation_method,
                     args.cumulative_incremental_backtracking,
+                    None,
+                    false,
                 ),
                 optimisation_strategy: args.optimisation_strategy,
             },

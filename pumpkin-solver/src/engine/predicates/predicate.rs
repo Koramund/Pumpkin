@@ -26,6 +26,7 @@ pub enum Predicate {
 }
 
 impl Predicate {
+    #[allow(dead_code, reason = "No core extraction")]
     pub(crate) fn is_mutually_exclusive_with(self, other: Predicate) -> bool {
         match (self, other) {
             (Predicate::LowerBound { .. }, Predicate::LowerBound { .. })
