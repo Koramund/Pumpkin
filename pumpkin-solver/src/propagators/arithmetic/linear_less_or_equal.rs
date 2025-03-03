@@ -43,16 +43,6 @@ where
             .collect_vec()
             .into();
 
-        // let multiplicity = 1;
-
-        // // Create an integer variable with value 3.
-        // let h = DomainId::new(3);
-        //
-        // let partials = (0..x.len()/multiplicity)
-        //     .map(|_| TrailedInt::default())
-        //     .collect_vec()
-        //     .into();
-
         // incremental state will be properly initialized in `Propagator::initialise_at_root`.
         LinearLessOrEqualPropagator::<Var> {
             x,
@@ -100,12 +90,8 @@ where
                 partial_lowers.push(lower_bound_left_hand_side)
             }
 
-
             // updates lower bound according to the default variables
             lower_bound_left_hand_side += context.lower_bound(x_i) as i64;
-
-
-
 
             // used for internal tracking of the lowerbounds of each variable.
             self.current_bounds[i] = context.new_stateful_integer(context.lower_bound(x_i) as i64);
@@ -122,6 +108,10 @@ where
             .map(|&value| context.create_new_integer_variable(value as i32, self.c))
             .collect_vec()
             .into();
+
+        self.partials.enumerate().for_each(|i, a_i| {
+            context.register(a_i.clone(), DomainEvents::BOUNDS, LocalId::from(i + self.x.len() as u32))
+        });
 
 
         // Represents the sum of the x_i sums.
