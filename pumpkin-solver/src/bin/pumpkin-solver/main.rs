@@ -26,6 +26,7 @@ use maxsat::PseudoBooleanEncoding;
 use parsers::dimacs::parse_cnf;
 use parsers::dimacs::SolverArgs;
 use parsers::dimacs::SolverDimacsSink;
+use pumpkin_solver::basic_types::linear_options::Shuffle;
 use pumpkin_solver::optimisation::OptimisationStrategy;
 use pumpkin_solver::options::*;
 use pumpkin_solver::proof::Format;
@@ -350,6 +351,10 @@ struct Args {
     /// Determine what type of optimisation strategy is used by the solver
     #[arg(long = "optimisation-strategy", default_value_t)]
     optimisation_strategy: OptimisationStrategy,
+    
+    /// Determine the ordering to be used by linear inequalities.
+    #[arg(long = "linear-ordering", value_enum, default_value_t = Shuffle::None)]
+    linear_ordering: Shuffle,
 }
 
 fn configure_logging(
@@ -523,6 +528,7 @@ fn run() -> PumpkinResult<()> {
         proof_log,
         conflict_resolver: args.conflict_resolver,
         learning_options,
+        linear_ordering: args.linear_ordering,
     };
 
     let time_limit = args.time_limit.map(Duration::from_millis);

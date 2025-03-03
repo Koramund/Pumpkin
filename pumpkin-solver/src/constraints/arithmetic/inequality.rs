@@ -2,9 +2,10 @@ use std::num::NonZero;
 
 use crate::constraints::Constraint;
 use crate::constraints::NegatableConstraint;
-use crate::propagators::linear_less_or_equal::LinearLessOrEqualPropagator;
+use crate::propagators::linear_less_or_equal_sequential::LinearLessOrEqualPropagatorSequential;
 use crate::variables::IntegerVariable;
 use crate::ConstraintOperationError;
+use crate::propagators::linear_less_or_equal_default::LinearLessOrEqualPropagatorDefault;
 use crate::Solver;
 
 /// Create the [`NegatableConstraint`] `\sum terms_i <= rhs`.
@@ -51,7 +52,11 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
         solver: &mut Solver,
         tag: Option<NonZero<u32>>,
     ) -> Result<(), ConstraintOperationError> {
-        LinearLessOrEqualPropagator::new(self.terms, self.rhs).post(solver, tag)
+        if self.terms.len() < 4 {
+            LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)
+        } else {
+            LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone()).post(solver, tag)
+        }
     }
 
     fn implied_by(
@@ -60,7 +65,7 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
         reification_literal: crate::variables::Literal,
         tag: Option<NonZero<u32>>,
     ) -> Result<(), ConstraintOperationError> {
-        LinearLessOrEqualPropagator::new(self.terms, self.rhs).implied_by(
+        LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).implied_by(
             solver,
             reification_literal,
             tag,

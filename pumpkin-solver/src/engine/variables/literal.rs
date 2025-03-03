@@ -58,6 +58,9 @@ impl Not for Literal {
 }
 
 impl IntegerVariable for Literal {
+    fn get_scale(&self) -> i32 {
+        1
+    }
     type AffineView = AffineView<Self>;
 
     /// Returns the lower bound represented as a 0-1 value.
