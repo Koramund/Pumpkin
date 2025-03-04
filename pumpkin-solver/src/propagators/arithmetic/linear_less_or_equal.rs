@@ -1,3 +1,4 @@
+use std::cmp::min;
 use itertools::Itertools;
 
 use crate::basic_types::PropagationStatusCP;
@@ -17,6 +18,7 @@ use crate::engine::variables::IntegerVariable;
 use crate::engine::TrailedInt;
 use crate::predicate;
 use crate::pumpkin_assert_simple;
+use crate::variables::DomainId;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -29,7 +31,9 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
     /// The value at index `i` is the bound for `x[i]`.
     current_bounds: Box<[TrailedInt]>,
     // Represents the partial sums.
-    partials: Box<[Var]>,
+    partials: Box<[DomainId]>,
+    // tracks variables that have been activated, aka some lower bound that is not their original lower bound.
+    active: Box<[TrailedInt]>,
     multiplicity: usize,
 }
 
@@ -43,6 +47,11 @@ where
             .collect_vec()
             .into();
 
+        let active = (0..x.len())
+            .map(|_| TrailedInt::default())
+            .collect_vec()
+            .into();
+
         // incremental state will be properly initialized in `Propagator::initialise_at_root`.
         LinearLessOrEqualPropagator::<Var> {
             x,
@@ -50,12 +59,13 @@ where
             lower_bound_left_hand_side: TrailedInt::default(),
             current_bounds,
             partials: Box::new([]),
+            active,
             multiplicity: 1,
         }
     }
 
     // Basically the explanation is not necessarily optimal. It just marks the current context as wrong.
-    // Certain parts of that context may also utilize different lowerbouds as wrong conclusions. x >= 2 -> x >= 1.
+    // Certain parts of that context may also utilize different lower bounds as wrong conclusions. x >= 2 -> x >= 1.
 
     // Will need to be altered to more concretely supply a >= n as the reason.
     
@@ -76,7 +86,7 @@ where
         let mut lower_bound_left_hand_side = 0_i64;
         // this registers the propagator to be notified of domain changes
 
-        let mut partial_lowers: Vec<i64> = vec![0_i64];
+        let mut partial_lowers: Vec<i64> = Vec::new();
 
         self.x.iter().enumerate().for_each(|(i, x_i)| {
             let _ = context.register(
@@ -93,11 +103,13 @@ where
             // updates lower bound according to the default variables
             lower_bound_left_hand_side += context.lower_bound(x_i) as i64;
 
-            // used for internal tracking of the lowerbounds of each variable.
+            // used for internal tracking of the lower bounds of each variable.
             self.current_bounds[i] = context.new_stateful_integer(context.lower_bound(x_i) as i64);
+            self.active[i] = context.new_stateful_integer(0);
         });
 
         // one extra push in case we left one out.
+        // TODO this should be removed as we do not reason with the last partial as it can imply nothing.
         if self.x.len() % self.multiplicity != 0 {
             partial_lowers.push(lower_bound_left_hand_side);
         }
@@ -109,8 +121,8 @@ where
             .collect_vec()
             .into();
 
-        self.partials.enumerate().for_each(|i, a_i| {
-            context.register(a_i.clone(), DomainEvents::BOUNDS, LocalId::from(i + self.x.len() as u32))
+        self.partials.iter().enumerate().for_each(|(i, a_i)| {
+            let _ = context.register(a_i.clone(), DomainEvents::BOUNDS, LocalId::from((i + self.x.len()) as u32));
         });
 
 
@@ -124,6 +136,9 @@ where
         }
     }
 
+    // very basic check that verifies we are not in a conflict.
+    // Currently only called during "incremental propagation".
+    // TODO still need to update this. Do I tho?
     fn detect_inconsistency(
         &self,
         context: StatefulPropagationContext,
@@ -142,8 +157,14 @@ where
         _event: OpaqueDomainEvent,
     ) -> EnqueueDecision {
         let index = local_id.unpack() as usize;
+
+        // quick return if it is referencing a partial sum as we'll just rely on the raw variables for now.
+        if index >= self.x.len() {
+            return EnqueueDecision::Enqueue
+        };
         let x_i = &self.x[index];
 
+        // local bounds utilized to store old information?
         let old_bound = context.value(self.current_bounds[index]);
         let new_bound = context.lower_bound(x_i) as i64;
 
@@ -152,6 +173,16 @@ where
             "propagator should only be triggered when lower bounds are tightened, old_bound={old_bound}, new_bound={new_bound}"
         );
 
+        // update active value if a lower bound was updated.
+        if context.value(self.active[index]) == 0 {
+            context.assign(self.active[index], 1);
+        }
+
+        // Utilizes a weird setting way, why not just directly assign?
+        // I'm guessing this just sets up the function before propagation. Doing some bookkeeping here.
+        // lower_bound is actually what we care about when backtracking for incremental.
+        // The others are tracked to properly book-keep on the lower_bound.
+        // TODO could also do this for our situation.
         context.add_assign(self.lower_bound_left_hand_side, new_bound - old_bound);
         context.assign(self.current_bounds[index], new_bound);
 
@@ -193,26 +224,7 @@ where
                 }
             };
 
-        for (i, x_i) in self.x.iter().enumerate() {
-            let bound = self.c - (lower_bound_left_hand_side - context.lower_bound(x_i));
-
-            if context.upper_bound(x_i) > bound {
-                let reason: PropositionalConjunction = self
-                    .x
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(j, x_j)| {
-                        if j != i {
-                            Some(predicate![x_j >= context.lower_bound(x_j)])
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                context.set_upper_bound(x_i, bound, reason)?;
-            }
-        }
+        self.update_bounds(context, lower_bound_left_hand_side)?;
 
         Ok(())
     }
@@ -249,16 +261,39 @@ where
             }
         };
 
+        self.update_bounds(context, lower_bound_left_hand_side)?;
+
+        Ok(())
+    }
+}
+
+impl<Var: 'static> LinearLessOrEqualPropagator<Var>
+where
+    Var: IntegerVariable,
+{
+    // now comes the tricky part. Updating the bounds in such a way that we rely on the partials.
+    // the best way is to probably just track which variables have already been activated.
+    // If any variable is assigned it is explained by the values in its partial and the previous partial.
+    // If a variable to the right has been activated it will also be used in this conjunction.
+    // This way we can still get the partials in there if the order is violated.
+    /// Updates the bounds of all the variables `x`
+    /// Note that it calls update_partials to ensure consistency before propagating.
+    fn update_bounds(&self, mut context: PropagationContextMut, lower_bound_left_hand_side: i32) -> PropagationStatusCP {
+        self.update_partials(&mut context)?;
+
         for (i, x_i) in self.x.iter().enumerate() {
             let bound = self.c - (lower_bound_left_hand_side - context.lower_bound(x_i));
 
+            // if the previous capacity of x_i is larger, then we want to lower bound it.
             if context.upper_bound(x_i) > bound {
-                let reason: PropositionalConjunction = self
+                // reason is now defined as the partial + any activated literal not in one of those partials
+                let mut reason: PropositionalConjunction = self
                     .x
                     .iter()
                     .enumerate()
                     .filter_map(|(j, x_j)| {
-                        if j != i {
+                        // using integer division to denote the bounds.
+                        if j >= ((i / self.multiplicity) * self.multiplicity) && j != i && context.value(self.active[j]) > 0 {
                             Some(predicate![x_j >= context.lower_bound(x_j)])
                         } else {
                             None
@@ -266,10 +301,54 @@ where
                     })
                     .collect();
 
+                match self.partials.get(i / self.multiplicity - 1) {
+                    Some(a) => reason.push(predicate!(a >= context.lower_bound(a))),
+                    _ => {}
+                }
+
+                // then update the variable
                 context.set_upper_bound(x_i, bound, reason)?;
             }
         }
+        Ok(())
+    }
+}
 
+impl<Var: 'static> LinearLessOrEqualPropagator<Var>
+where
+    Var: IntegerVariable,
+{
+    /// Updates the partial variables before they are utilized in any explanations.
+    fn update_partials(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        for (i, a_i) in self.partials.iter().enumerate() {
+            let mut partial_bound = self.c;
+
+            for j in 0..self.multiplicity {
+                partial_bound = partial_bound - context.lower_bound(&self.x[i * self.multiplicity + j]);
+            }
+
+            if partial_bound < context.upper_bound(a_i) {
+                // update value of the partial.
+
+                let start = i * self.multiplicity;
+                let end = min(start + self.multiplicity, self.x.len());
+
+                // First take the relevant section as the reason.
+                let mut reason: PropositionalConjunction = self.x[start..end]
+                    .iter()
+                    .enumerate().map(|(_, x_i)| {
+                    predicate!(x_i >= context.lower_bound(x_i))
+                }).collect();
+
+                // if there is a partial then add it as well.
+                // may be more optimal to utilize .get and matching no clue how the compiler deals with that.
+                if i != 0 {
+                    reason.push(predicate!(self.partials[i-1] >= context.lower_bound(&self.partials[i-1])));
+                }
+
+                context.set_upper_bound(a_i, partial_bound, reason)?;
+            }
+        }
         Ok(())
     }
 }
