@@ -337,7 +337,7 @@ where
                     .collect();
 
                 if i >= self.multiplicity {
-                    let a = &self.partials[(i/self.multiplicity) - 1];
+                    let a = &self.partials[(i / self.multiplicity) - 1];
                     reason.push(predicate!(a >= context.lower_bound(a)))
                 }
 
@@ -347,13 +347,7 @@ where
         }
         Ok(())
     }
-}
 
-impl<Var: 'static> LinearLessOrEqualPropagator<Var>
-where
-    Var: IntegerVariable,
-{
-    /// Updates the partial variables before they are utilized in any explanations.
     fn update_partials(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         for (i, a_i) in self.partials.iter().enumerate() {
             let mut partial_bound = self.c;
@@ -362,7 +356,7 @@ where
                 partial_bound = partial_bound - context.lower_bound(&self.x[i * self.multiplicity + j]);
             }
             if i > 0 {
-                partial_bound = partial_bound - context.lower_bound(&self.partials[i-1]);
+                partial_bound = partial_bound - context.lower_bound(&self.partials[i - 1]);
             }
 
             if partial_bound < context.upper_bound(a_i) {
