@@ -48,10 +48,18 @@ where
             .collect_vec()
             .into();
 
-        let current_partial_bounds = (0..x.len() / multiplicity)
-            .map(|_| TrailedInt::default())
-            .collect_vec()
-            .into();
+        let current_partial_bounds;
+        if x.len() % multiplicity != 0 {
+            current_partial_bounds = (0..x.len() / multiplicity)
+                .map(|_| TrailedInt::default())
+                .collect_vec()
+                .into();
+        } else {
+            current_partial_bounds = (0..(x.len() / multiplicity) - 1)
+                .map(|_| TrailedInt::default())
+                .collect_vec()
+                .into();
+        };
 
         // incremental state will be properly initialized in `Propagator::initialise_at_root`.
         LinearLessOrEqualPropagator::<Var> {
@@ -163,7 +171,16 @@ where
         if index >= self.x.len() {
             // scenario where only a partial is updated
             partial_index = index - self.x.len();
-            diff = context.lower_bound(&self.partials[index]) as i64 - context.value(self.current_partial_bounds[index]);
+            diff = context.lower_bound(&self.partials[partial_index]) as i64 - context.value(self.current_partial_bounds[partial_index]);
+            let siz = self.x.len();
+            let old = context.value(self.current_partial_bounds[partial_index]);
+            let new = context.lower_bound(&self.partials[partial_index]) as i64;
+
+            pumpkin_assert_simple!(
+                diff > 0,
+                "propagator should only trigger if lower bounds are tightened yet a diff of {diff} was found. Index: {index}, partial: {partial_index}, instance_size: {siz}, old: {old}, new: {new}",
+            );
+
         } else {
             // scenario where an x is updated.
             partial_index = index / self.multiplicity;
@@ -172,13 +189,17 @@ where
             context.assign(self.current_bounds[index], context.lower_bound(&self.x[index]) as i64);
         }
 
-        pumpkin_assert_simple!(
-            diff > 0,
-            "proagator should only trigger if lower bounds are tightened yet a diff of {diff} was found"
-        );
+        // TODO this fails.
+        let siz = self.x.len();
+
+            pumpkin_assert_simple!(
+                diff > 0,
+                "propagator should only trigger if lower bounds are tightened yet a diff of {diff} was found. Index: {index}, partial: {partial_index}, instance_size: {siz}",
+            );
+
 
         // TODO test if this scenario occurs because it might happen that once update_partials starts reasoning that suddenly a lot of notification might start piling on.
-        if diff == 0 {return EnqueueDecision::Skip}
+        // if diff == 0 {return EnqueueDecision::Skip}
 
         // scenario for an a variable
         // TODO note this method only keeps track of our incremental datas tructure without justifying the partials sums in their explanations yet.
@@ -187,9 +208,15 @@ where
 
         // we thus update every partial with this difference.
         // Note that partial_index == self.current_partial_bounds.len() is a possibility. If Rust is nice it will just skip the loop then.
+
         for i in partial_index..self.current_partial_bounds.len() {
+            if i == self.current_partial_bounds.len() - 1 && self.x.len() % self.multiplicity == 0 {
+                continue
+            }
             context.add_assign(self.current_partial_bounds[i], diff);
         }
+
+
 
         // finally we update the LHS
         context.add_assign(self.lower_bound_left_hand_side, diff);
@@ -334,7 +361,7 @@ where
             for j in 0..self.multiplicity {
                 partial_bound = partial_bound - context.lower_bound(&self.x[i * self.multiplicity + j]);
             }
-            if i != 0 {
+            if i > 0 {
                 partial_bound = partial_bound - context.lower_bound(&self.partials[i-1]);
             }
 
@@ -353,7 +380,7 @@ where
 
                 // if there is a partial then add it as well.
                 // may be more optimal to utilize .get and matching no clue how the compiler deals with that.
-                if i != 0 {
+                if i > 0 {
                     reason.push(predicate!(self.partials[i-1] >= context.lower_bound(&self.partials[i-1])));
                 }
 
@@ -373,15 +400,22 @@ mod tests {
     #[test]
     fn test_bounds_are_propagated() {
         let mut solver = TestSolver::default();
+        let z = solver.new_variable(2, 8);
+        let z1 = solver.new_variable(0, 7);
+        let x2 = solver.new_variable(2, 5);
         let x = solver.new_variable(1, 5);
         let y = solver.new_variable(0, 10);
+        let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), 7))
+            .new_propagator(LinearLessOrEqualPropagator::new([z,z1, x2, x, y, p].into(), 12))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
 
+        println!("{}", solver.get_reason_int(predicate!(y <= 6)));
+
+        println!("{:?}", solver.reason_store);
         solver.assert_bounds(x, 1, 5);
         solver.assert_bounds(y, 0, 6);
     }
@@ -389,6 +423,7 @@ mod tests {
     #[test]
     fn test_explanations() {
         let mut solver = TestSolver::default();
+
         let x = solver.new_variable(1, 5);
         let y = solver.new_variable(0, 10);
 
