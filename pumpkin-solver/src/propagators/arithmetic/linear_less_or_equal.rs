@@ -32,8 +32,8 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
     current_bounds: Box<[TrailedInt]>,
     // Represents the partial sums.
     partials: Box<[DomainId]>,
-    // tracks variables that have been activated, aka some lower bound that is not their original lower bound.
-    active: Box<[TrailedInt]>,
+    // The value at index `i` is the bound for `a[i]`
+    current_partial_bounds: Box<[TrailedInt]>,
     multiplicity: usize,
 }
 
@@ -42,12 +42,13 @@ where
     Var: IntegerVariable,
 {
     pub(crate) fn new(x: Box<[Var]>, c: i32) -> Self {
+        let multiplicity = 2;
         let current_bounds = (0..x.len())
             .map(|_| TrailedInt::default())
             .collect_vec()
             .into();
 
-        let active = (0..x.len())
+        let current_partial_bounds = (0..x.len() / multiplicity)
             .map(|_| TrailedInt::default())
             .collect_vec()
             .into();
@@ -59,8 +60,8 @@ where
             lower_bound_left_hand_side: TrailedInt::default(),
             current_bounds,
             partials: Box::new([]),
-            active,
-            multiplicity: 1,
+            current_partial_bounds,
+            multiplicity,
         }
     }
 
@@ -97,7 +98,7 @@ where
 
             // saves the lower bound for the previous three values.
             if (i % self.multiplicity) == 0 && i > 0 {
-                partial_lowers.push(lower_bound_left_hand_side)
+                partial_lowers.push(lower_bound_left_hand_side);
             }
 
             // updates lower bound according to the default variables
@@ -105,14 +106,7 @@ where
 
             // used for internal tracking of the lower bounds of each variable.
             self.current_bounds[i] = context.new_stateful_integer(context.lower_bound(x_i) as i64);
-            self.active[i] = context.new_stateful_integer(0);
         });
-
-        // one extra push in case we left one out.
-        // TODO this should be removed as we do not reason with the last partial as it can imply nothing.
-        if self.x.len() % self.multiplicity != 0 {
-            partial_lowers.push(lower_bound_left_hand_side);
-        }
 
         // convert partials_lower into partials by creating new variables via context.create_new_integer_variable
         self.partials = partial_lowers.iter()
@@ -121,8 +115,13 @@ where
             .collect_vec()
             .into();
 
+        // init partial bounds for incrementality
+        partial_lowers.iter().enumerate().for_each(|(i, &value)| {
+            self.current_partial_bounds[i] = context.new_stateful_integer(value);
+        });
+
         self.partials.iter().enumerate().for_each(|(i, a_i)| {
-            let _ = context.register(a_i.clone(), DomainEvents::BOUNDS, LocalId::from((i + self.x.len()) as u32));
+            let _ = context.register(a_i.clone(), DomainEvents::LOWER_BOUND, LocalId::from((i + self.x.len()) as u32));
         });
 
 
@@ -158,33 +157,42 @@ where
     ) -> EnqueueDecision {
         let index = local_id.unpack() as usize;
 
-        // quick return if it is referencing a partial sum as we'll just rely on the raw variables for now.
+        let partial_index: usize;
+        let diff: i64;
+
         if index >= self.x.len() {
-            return EnqueueDecision::Enqueue
-        };
-        let x_i = &self.x[index];
+            // scenario where only a partial is updated
+            partial_index = index - self.x.len();
+            diff = context.lower_bound(&self.partials[index]) as i64 - context.value(self.current_partial_bounds[index]);
+        } else {
+            // scenario where an x is updated.
+            partial_index = index / self.multiplicity;
+            diff = context.lower_bound(&self.x[index]) as i64 - context.value(self.current_bounds[index]);
 
-        // local bounds utilized to store old information?
-        let old_bound = context.value(self.current_bounds[index]);
-        let new_bound = context.lower_bound(x_i) as i64;
-
-        pumpkin_assert_simple!(
-            old_bound < new_bound,
-            "propagator should only be triggered when lower bounds are tightened, old_bound={old_bound}, new_bound={new_bound}"
-        );
-
-        // update active value if a lower bound was updated.
-        if context.value(self.active[index]) == 0 {
-            context.assign(self.active[index], 1);
+            context.assign(self.current_bounds[index], context.lower_bound(&self.x[index]) as i64);
         }
 
-        // Utilizes a weird setting way, why not just directly assign?
-        // I'm guessing this just sets up the function before propagation. Doing some bookkeeping here.
-        // lower_bound is actually what we care about when backtracking for incremental.
-        // The others are tracked to properly book-keep on the lower_bound.
-        // TODO could also do this for our situation.
-        context.add_assign(self.lower_bound_left_hand_side, new_bound - old_bound);
-        context.assign(self.current_bounds[index], new_bound);
+        pumpkin_assert_simple!(
+            diff > 0,
+            "proagator should only trigger if lower bounds are tightened yet a diff of {diff} was found"
+        );
+
+        // TODO test if this scenario occurs because it might happen that once update_partials starts reasoning that suddenly a lot of notification might start piling on.
+        if diff == 0 {return EnqueueDecision::Skip}
+
+        // scenario for an a variable
+        // TODO note this method only keeps track of our incremental datas tructure without justifying the partials sums in their explanations yet.
+        // That happens in the propagate function
+        // TODO That still needs to happen in the propagate function by utilizing this datastructure. It is currently recalculating it anyways every time.
+
+        // we thus update every partial with this difference.
+        // Note that partial_index == self.current_partial_bounds.len() is a possibility. If Rust is nice it will just skip the loop then.
+        for i in partial_index..self.current_partial_bounds.len() {
+            context.add_assign(self.current_partial_bounds[i], diff);
+        }
+
+        // finally we update the LHS
+        context.add_assign(self.lower_bound_left_hand_side, diff);
 
         EnqueueDecision::Enqueue
     }
@@ -293,7 +301,7 @@ where
                     .enumerate()
                     .filter_map(|(j, x_j)| {
                         // using integer division to denote the bounds.
-                        if j >= ((i / self.multiplicity) * self.multiplicity) && j != i && context.value(self.active[j]) > 0 {
+                        if j >= ((i / self.multiplicity) * self.multiplicity) && j != i {
                             Some(predicate![x_j >= context.lower_bound(x_j)])
                         } else {
                             None
@@ -301,9 +309,9 @@ where
                     })
                     .collect();
 
-                match self.partials.get(i / self.multiplicity - 1) {
-                    Some(a) => reason.push(predicate!(a >= context.lower_bound(a))),
-                    _ => {}
+                if i >= self.multiplicity {
+                    let a = &self.partials[(i/self.multiplicity) - 1];
+                    reason.push(predicate!(a >= context.lower_bound(a)))
                 }
 
                 // then update the variable
@@ -325,6 +333,9 @@ where
 
             for j in 0..self.multiplicity {
                 partial_bound = partial_bound - context.lower_bound(&self.x[i * self.multiplicity + j]);
+            }
+            if i != 0 {
+                partial_bound = partial_bound - context.lower_bound(&self.partials[i-1]);
             }
 
             if partial_bound < context.upper_bound(a_i) {
@@ -388,7 +399,7 @@ mod tests {
         solver.propagate(propagator).expect("non-empty domain");
 
         let reason = solver.get_reason_int(predicate![y <= 6]);
-
+        
         assert_eq!(conjunction!([x >= 1]), reason);
     }
 
