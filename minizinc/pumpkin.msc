@@ -2,7 +2,7 @@
     "name": "Pumpkin",
     "id": "nl.tudelft.algorithmics.pumpkin",
     "version": "0.1",
-    "executable": "../target/release/pumpkin-solver",
+    "executable": "../target/debug/pumpkin-solver",
     "mznlib": "./lib",
     "stdFlags": ["-v", "-f", "-r", "-t", "-s", "-a"],
 

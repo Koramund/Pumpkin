@@ -312,7 +312,7 @@ where
                     // inits prev_a with some default that will not be used again.
                     prev_a = &self.partials[0];
                 }
-                
+
                 if new_ub_for_x_i < context.upper_bound(x_i) {
                     let mut reason: PropositionalConjunction = self.x[i * self.multiplicity..(i + 1) * self.multiplicity].iter().enumerate().filter_map(|(j, x_j)| {
                         if i_x != j { Some(predicate!(x_j >= context.lower_bound(x_j))) } else { None }
@@ -515,7 +515,6 @@ mod tests {
         solver.assert_bounds(p, 1, 5);
 
         solver.decrease_upper_bound_and_notify(propagator, 1, z, 2);
-
     }
 
     #[test]
