@@ -77,12 +77,19 @@ where
     // Certain parts of that context may also utilize different lower bounds as wrong conclusions. x >= 2 -> x >= 1.
 
     // Will need to be altered to more concretely supply a >= n as the reason.
-    
+
+    // Isn't the true conflict reason (apart from variables with empty domains)
+    // That the last partial and the last variables have overshot their domain?
     fn create_conflict_reason(&self, context: PropagationContext) -> PropositionalConjunction {
-        self.x
+        let start = (self.x.len() - (((self.x.len() - 1) % self.multiplicity) + 1));
+        let end = self.x.len();
+
+        let mut reason: PropositionalConjunction = self.x[start..end]
             .iter()
             .map(|var| predicate![var >= context.lower_bound(var)])
-            .collect()
+            .collect();
+        reason.add(predicate!(self.partials[self.partials.len()-1] >= context.lower_bound(&self.partials[self.partials.len()-1])));
+        reason
     }
 }
 
@@ -381,9 +388,6 @@ where
         // Note that partial_index == self.current_partial_bounds.len() is a possibility. If Rust is nice it will just skip the loop then.
 
         for i in partial_index..self.current_partial_bounds.len() {
-            if i == self.current_partial_bounds.len() - 1 && self.x.len() % self.multiplicity == 0 {
-                continue
-            }
             context.add_assign(self.current_partial_bounds[i], diff);
         }
 
