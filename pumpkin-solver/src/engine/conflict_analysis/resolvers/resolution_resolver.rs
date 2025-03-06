@@ -418,9 +418,10 @@ impl ResolutionResolver {
         // First we obtain a semantically minimised nogood.
         //
         // We reuse the vector with lower decision levels for simplicity.
-        dbg!(&self.to_process_heap);
+        // dbg!(&self.to_process_heap);
         if self.to_process_heap.num_nonremoved_elements() > 0 {
             let last_predicate = self.pop_predicate_from_conflict_nogood();
+            dbg!(last_predicate);
             self.processed_nogood_predicates.push(last_predicate);
         } else {
             pumpkin_assert_simple!(matches!(self.mode, AnalysisMode::AllDecision), "If the heap is empty when extracting the final nogood then we should be performing all decision learning")
@@ -480,6 +481,9 @@ impl ResolutionResolver {
             // For unit nogoods, the solver backtracks to the root level.
             0
         };
+
+        dbg!(&backjump_level);
+        dbg!(&clean_nogood);
 
         pumpkin_assert_advanced!(clean_nogood
             .iter()
