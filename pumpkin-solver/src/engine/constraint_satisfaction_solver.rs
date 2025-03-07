@@ -859,6 +859,7 @@ impl ConstraintSatisfactionSolver {
         // Note: This also checks that the decision predicate is not already true. That is a
         // stronger check than the `.expect(...)` used later on when handling the result of
         // `Assignments::post_predicate`.
+        // dbg!(decision_predicate);
         pumpkin_assert_moderate!(
             !self.assignments.is_predicate_satisfied(decision_predicate),
             "Decision should not already be assigned; double check the brancher"

@@ -1,23 +1,17 @@
-use std::cmp::min;
 use itertools::Itertools;
+use std::cmp::min;
 
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
-use crate::engine::domain_events::DomainEvents;
+use crate::engine::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
-use crate::engine::propagation::contexts::ManipulateStatefulIntegers;
 use crate::engine::propagation::contexts::StatefulPropagationContext;
-use crate::engine::propagation::EnqueueDecision;
-use crate::engine::propagation::LocalId;
-use crate::engine::propagation::PropagationContext;
-use crate::engine::propagation::PropagationContextMut;
+use crate::engine::propagation::{EnqueueDecision, LocalId, PropagationContextMut};
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::variables::IntegerVariable;
-use crate::engine::{IntDomainEvent, TrailedInt};
 use crate::predicate;
-use crate::pumpkin_assert_simple;
 use crate::variables::DomainId;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
@@ -53,27 +47,50 @@ where
 {
     // This function needs to be altered to create a series of variables a_i
     fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
-        let mut lower_bound_left_hand_side = 0_i64;
+        let mut lower_bound_left_hand_side = 0_i32;
+        let mut upper_bound_left_hand_side = 0_i32;
         // this registers the propagator to be notified of domain changes
-        let mut partial_lowers: Vec<i64> = Vec::new();
+        let mut partial_lowers: Vec<i32> = Vec::new();
+        let mut partial_uppers: Vec<i32> = Vec::new();
 
         self.x.iter().enumerate().for_each(|(i, x_i)| {
+
+            let _ = context.register(
+                x_i.clone(),
+                DomainEvents::BOUNDS,
+                LocalId::from(i as u32),
+            );
+
 
             // saves the lower bound for the previous three values.
             if (i % self.multiplicity) == 0 && i > 0 {
                 partial_lowers.push(lower_bound_left_hand_side);
+                partial_uppers.push(upper_bound_left_hand_side);
             }
 
             // updates lower bound according to the default variables
-            lower_bound_left_hand_side += context.lower_bound(x_i) as i64;
+            lower_bound_left_hand_side += context.lower_bound(x_i);
+            upper_bound_left_hand_side += context.upper_bound(x_i);
         });
 
+        // TODO I think currently the upper bounds of the variables aren't set even tho they should be?
+        // TODO doing that here should speed up our work?
+
+        // TODO @Imko I don't think the context here actually has access but these are technically root level decisions no?
+
         // convert partials_lower into partials by creating new variables via context.create_new_integer_variable
-        self.partials = partial_lowers.iter()
-            // potentially risky i32 cast.
-            .map(|&value| context.create_new_integer_variable(value as i32, self.c))
-            .collect_vec()
+        // dbg!(self.c);
+        // dbg!(self.x.iter().map(|x_i| context.lower_bound(x_i)).collect_vec());
+        // dbg!(self.x.iter().map(|x_i| context.upper_bound(x_i)).collect_vec());
+        
+        self.partials = partial_lowers.iter().zip(partial_uppers.iter()).map(|(&lower, &upper)| {
+            context.create_new_integer_variable(lower, upper)
+        }).collect_vec()
             .into();
+        
+        self.partials.iter().enumerate().for_each(|(i, a_i)| {
+            let _ = context.register(a_i.clone(), DomainEvents::BOUNDS, LocalId::from((i + self.x.len()) as u32));
+        });
 
         Ok(())
     }
@@ -87,13 +104,13 @@ where
         context: StatefulPropagationContext,
     ) -> Option<PropositionalConjunction> {
 
-        let start = (self.x.len() - (((self.x.len() - 1) % self.multiplicity) + 1));
+        let start = self.x.len() - (((self.x.len() - 1) % self.multiplicity) + 1);
         let end = self.x.len();
 
-        let lb = self.x[start..end]
+        let lb: i32 = self.x[start..end]
             .iter()
             .map(|var| context.lower_bound(var))
-            .sum() + if self.partials.len() > 0 {context.lower_bound(&self.partials[self.partials.len()-1])} else {0};
+            .sum::<i32>() + if self.partials.len() > 0 {context.lower_bound(&self.partials[self.partials.len()-1])} else {0};
 
         if lb > self.c {
             let mut reason: PropositionalConjunction = self.x[start..end]
@@ -102,9 +119,9 @@ where
                 .collect();
             if self.partials.len() > 0 {
                 reason.add(predicate!(self.partials[self.partials.len()-1] >= context.lower_bound(&self.partials[self.partials.len()-1])));
-                dbg!(&self.partials[self.partials.len()-1]);
+                // dbg!(&self.partials[self.partials.len()-1]);
             }
-            dbg!(&reason);
+            // dbg!(&reason);
             Some(reason)
         } else {
             None
@@ -118,7 +135,7 @@ where
     fn name(&self) -> &str {
         "LinearLeq"
     }
-
+        
     fn debug_propagate_from_scratch(
         &self,
         mut context: PropagationContextMut,
@@ -143,7 +160,7 @@ impl<Var: 'static> LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
-    // This function is responsible of setting the upperbounds of the partials
+    // This function is responsible for setting the upperbounds of the partials
     /// This is responsible for setting a <= n.
     fn maintain_upper_bound_consistency(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         // // TODO this only takes care of UB of a into its surrounds.
@@ -153,28 +170,36 @@ where
 
         // Too lazy to do it properly for now but there is of course no last partial to update if there are no partials.
         if self.partials.len() > 0 {
-            let start = (self.x.len() - (((self.x.len() - 1) % self.multiplicity) + 1));
+            let last_partial = self.partials[self.partials.len()-1];
+            let start = self.x.len() - (((self.x.len() - 1) % self.multiplicity) + 1);
             let end = self.x.len();
 
-            let new_ub = self.c - self.x[start..end].iter().map(|value| {context.lower_bound(value)}).reduce(|a, b| a + b).unwrap();
-            if new_ub < context.upper_bound(&self.partials[self.partials.len()-1]) {
+            let new_ub = self.c - self.x[start..end].iter().map(|value| {context.lower_bound(value)}).sum::<i32>();
+            // dbg!(&new_ub);
+            if new_ub < context.upper_bound(&last_partial) {
                 let last_partial_reason: PropositionalConjunction = self.x[start..end].iter().map(|value| {predicate!(value >= context.lower_bound(value))}).collect();
-                context.set_upper_bound(&self.partials[self.partials.len()-1], new_ub, last_partial_reason)?;
+                // dbg!(("last", new_ub, &last_partial_reason));
+                context.set_upper_bound(&last_partial, new_ub, last_partial_reason)?;
             }
         }
 
+        // dbg!(self.partials.iter().map(|p| {context.lower_bound(p)}).collect_vec());
+        // dbg!(self.partials.iter().map(|p| {context.upper_bound(p)}).collect_vec());
+        // dbg!(self.x.iter().map(|p| {context.lower_bound(p)}).collect_vec());
+        
         // update the upperbounds of all the other a variables.
         // it loops over a_i but ever loop updates a_i - 1
-        self.partials.iter().enumerate().rev().for_each(|(i, a_i)| {
+        for (i, a_i) in self.partials.iter().enumerate().rev() {
             let new_ub_for_prev_a = context.upper_bound(a_i) - self.x[i * self.multiplicity..(i + 1) * self.multiplicity].iter().map(|value| context.lower_bound(value)).reduce(|acc, value| acc + value).unwrap();
             // first update the previous a value.
             if i > 0 && new_ub_for_prev_a < context.upper_bound(&self.partials[i - 1]) {
                 let mut reason: PropositionalConjunction = self.x[i * self.multiplicity..(i + 1) * self.multiplicity].iter().map(|value| predicate!(value >= context.lower_bound(value))).collect();
                 reason.add(predicate!(a_i <= context.upper_bound(a_i)));
 
+                // dbg!((i, new_ub_for_prev_a, &reason));
                 context.set_upper_bound(&self.partials[i - 1], new_ub_for_prev_a, reason)?;
             }
-        });
+        };
 
         Ok(())
     }
@@ -203,11 +228,14 @@ where
             let start = (i / self.multiplicity) * self.multiplicity;
             let end = min(start + self.multiplicity, self.x.len());
 
-            let surrounding_consumption = self.x[start..end].iter().map(|x_j| {context.lower_bound(&x_j)}).sum() - context.lower_bound(&x_i) + if (i >= self.multiplicity) {context.lower_bound(&self.partials[i/ self.multiplicity-1])} else {0};
+            let surrounding_consumption: i32 = self.x[start..end].iter().map(|x_j| {context.lower_bound(x_j)}).sum::<i32>() - context.lower_bound(x_i) +
+                if i >= self.multiplicity {context.lower_bound(&self.partials[i/ self.multiplicity-1])} else {0};
 
             // The remaining energy is determined by the next partials upper bound as that explains how much energy has been consumed ahead.
-            let upperbound = if (i/self.multiplicity < self.partials.len()) {context.upper_bound(&self.partials[i/self.multiplicity])} else {self.c};
+            let upperbound = if i/self.multiplicity < self.partials.len() {context.upper_bound(&self.partials[i/self.multiplicity])} else {self.c};
             let bound = upperbound - surrounding_consumption;
+            
+            // dbg!(surrounding_consumption, bound);
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
             if context.upper_bound(x_i) > bound {
@@ -235,10 +263,11 @@ where
                 // Upper bound of next partial is required as it determines energy capacity
                 if i / self.multiplicity < self.partials.len() {
                     let a = &self.partials[i / self.multiplicity];
-                    reason.push(predicate!(a <= context.lower_bound(a)))
+                    reason.push(predicate!(a <= context.upper_bound(a)))
                 }
 
                 // then update the variable
+                // dbg!(i, bound, &reason);
                 context.set_upper_bound(x_i, bound, reason)?;
             }
         }
@@ -261,7 +290,7 @@ where
             }
 
             if partial_bound > context.lower_bound(a_i) {
-                dbg!((i, partial_bound, context.lower_bound(a_i)));
+                // dbg!((i, partial_bound, context.lower_bound(a_i)));
                 // update value of the partial.
 
                 let start = i * self.multiplicity;
@@ -280,6 +309,7 @@ where
                     reason.push(predicate!(self.partials[i-1] >= context.lower_bound(&self.partials[i-1])));
                 }
 
+                // dbg!((i, partial_bound, &reason));
                 context.set_lower_bound(a_i, partial_bound, reason)?;
             }
         }
@@ -322,8 +352,6 @@ mod tests {
         solver.assert_bounds(x, 1, 5);
         solver.assert_bounds(y, 0, 4);
         solver.assert_bounds(p, 1, 5);
-
-        solver.decrease_upper_bound_and_notify(propagator, 1, z, 2);
     }
 
     #[test]
