@@ -11,7 +11,7 @@ predicate fzn_cumulative(array[int] of var int: s,
         "cumulative: the 3 array arguments must have identical index sets",
         forall(i in index_set(d))(d[i] >= 0 /\ r[i] >= 0)
 	/\  if is_fixed(d) /\ is_fixed(r) /\ is_fixed(b) then
-		    pumpkin_cumulative(s, fix(d), fix(r), fix(b))
+		    fzn_decomposition_cumulative(s, fix(d), fix(r), fix(b))
 	    else
             fzn_decomposition_cumulative(s, d, r, b)
 	    endif
@@ -27,9 +27,9 @@ predicate fzn_decomposition_cumulative(array[int] of var int: s,
                 if length(s) >= 1 then
                 assert(lb_array(d) >= 0 /\ lb_array(r) >= 0,
                     "cumulative: durations and resource usages must be non-negative",
-                    if  
+                    if
                     %% the previous test will not work for resources usages like [2,3,3,4,4] with a bound of 4 since the 2 appears exactly once
-                    let { int: mr = lb_array(r); 
+                    let { int: mr = lb_array(r);
                             int: mri = arg_min([ lb(r[i]) | i in index_set(r) ]) } in
                     forall(i in index_set(r))
                             (is_fixed(r[i]) /\ (fix(r[i]) + mr > ub(b) \/ i = mri))
@@ -50,21 +50,17 @@ predicate fzn_decomposition_cumulative(array[int] of var int: s,
 predicate decomposition_cumulative(array[int] of var int: s,
                      array[int] of var int: d,
                      array[int] of var int: r, var int: b) =
-        let { 
-            set of int: Tasks = 
+        let {
+            set of int: Tasks =
                 {i | i in index_set(s) where ub(r[i]) > 0 /\ ub(d[i]) > 0 }
         } in
             if 0==card(Tasks) then /*true*/ 0==card(index_set(s)) \/ b>=0
             else
                 let {
-                    int: early = min([ lb(s[i])            | i in Tasks ]), 
-                    int: late  = max([ ub(s[i]) + ub(d[i]) | i in Tasks ]) 
+                    int: early = min([ lb(s[i])            | i in Tasks ]),
+                    int: late  = max([ ub(s[i]) + ub(d[i]) | i in Tasks ])
                 } in (
-                    if late - early > 5000 then
-                      fzn_cumulative_task(s, d, r, b)
-                    else
-                      fzn_cumulative_time(s, d, r, b)
-                    endif
+                    fzn_cumulative_time(s, d, r, b)
                 )
             endif
             ;
