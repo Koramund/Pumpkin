@@ -6,10 +6,11 @@ use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
 use crate::engine::DomainEvents;
-use crate::predicate;
+use crate::{predicate, pumpkin_assert_simple};
 use crate::predicates::Predicate;
 use crate::variables::DomainId;
 use std::ops::Range;
+use itertools::Itertools;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -51,10 +52,11 @@ where
     fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
         // TODO double check this size calculation
 
+        // Note that floating precision may bite us and create a larger tree than necessary.
         let size = (self.b as f64).powf((self.x.len() as f64).powf(1.0/(self.b as f64)).ceil()) as usize - 1;
 
         // let size = pow(div_ceil(nth_root(self.x.len() as f64, self.b as u32), 1), self.b) - 1;
-        // dbg!((self.x.len() as f64).powf(1.0/(self.b as f64)).ceil(), size);
+        // dbg!((self.x.len() as f64).powf(1.0/(self.b as f64)), (self.x.len() as f64).powf(1.0/(self.b as f64)).ceil(), size);
         self.partials = vec![None; size].into_boxed_slice();
 
         for i in (0..size).rev() {
@@ -69,12 +71,18 @@ where
 
             // TODO change the get methods to also return options such that filter maps automatically ignore it :P
             let lb: i32 = self.children(i).filter_map(|j| self.get_lower_init(context, j)).sum();
-            let ub: i32;
+            let mut ub: i32 = self.children(i).filter_map(|j| self.get_upper_init(context, j)).sum();
+            
             if i == 0 {
-                ub = self.c
-            } else {
-                ub = self.children(i).filter_map(|j| self.get_upper_init(context, j)).sum();
+                if self.c < lb {
+                    return Err(PropositionalConjunction::from(self.children(i).filter_map(|j| self.get_pred_lower_init(context, j)).collect_vec()));
+                }
+                
+                ub = self.c;
+
             }
+
+            pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
 
             let partial = context.create_new_integer_variable(lb, ub);
 
@@ -98,10 +106,12 @@ where
 
         self.total_num = self.partials.len() + self.x.len();
         //
-        // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.lower_bound(p) } None => {-1} } }).collect_vec());
-        // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.upper_bound(p) } None => {-1} } }).collect_vec());
         // dbg!(self.partials.iter().filter(|x| !x.is_none()).map(|p| context.upper_bound(&p.unwrap())).collect_vec());
-
+        // dbg!(&self.partials);
+        // dbg!(self.x);
+        // dbg!(self.c);
+        
+        
         Ok(())
     }
 
@@ -118,12 +128,13 @@ where
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
 
-        self.push_lower_bound_up(&mut context)?;
+        
         self.push_upper_bound_down(&mut context)?;
-        self.push_upper_bound_up(&mut context)?;
         self.push_lower_bound_down(&mut context)?;
-
-
+        self.push_lower_bound_up(&mut context)?;
+        self.push_upper_bound_up(&mut context)?;
+        
+        self.assert_partials_are_fixed_with_children(&mut context)?;
         Ok(())
     }
 }
@@ -144,7 +155,6 @@ where
                 Some(_) => true,
             }
         }
-
     }
 
     // a series of functions such that I do not need to think about what the value of value I actually references
@@ -239,6 +249,18 @@ where
         }
     }
 
+    fn get_pred_lower_init(&self, context: &PropagatorInitialisationContext, index: usize) -> Option<Predicate> {
+        if !self.node_exists(index) {
+            return None;
+        }
+        if index >= self.partials.len() {
+            Some(predicate!(self.x[index - self.partials.len()] >= context.lower_bound(&self.x[index - self.partials.len()])))
+        } else {
+            let node = self.partials[index].unwrap();
+            Some(predicate!(node >= context.lower_bound(&node)))
+        }
+    }
+
     fn get_pred_upper(&self, context: &PropagationContextMut, index: usize) -> Predicate {
         if index >= self.partials.len() {
             predicate!(self.x[index - self.partials.len()] <= context.upper_bound(&self.x[index - self.partials.len()]))
@@ -258,6 +280,29 @@ where
         (index - 1) / self.b
     }
 
+    
+    fn assert_partials_are_fixed_with_children(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        for i in (0..self.partials.len()).rev() {
+            if !self.node_exists(i) {
+                continue;
+            }
+            let lb: i32 = self.children(i).filter_map(|j| self.get_lower(context, j)).sum();
+            let ub: i32 = self.children(i).filter_map(|j| self.get_upper(context, j)).sum();
+            if lb == ub {
+                let lb_p = self.get_lower(context, i).unwrap();
+                let ub_p = self.get_upper(context, i).unwrap();
+                // 
+                // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.lower_bound(p) } None => {-1} } }).collect_vec());
+                // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.upper_bound(p) } None => {-1} } }).collect_vec());
+                // 
+                // dbg!(self.x.iter().map(|x| context.lower_bound(x)).collect_vec());
+                // dbg!(self.x.iter().map(|x| context.upper_bound(x)).collect_vec());
+                
+                pumpkin_assert_simple!(lb_p == ub_p, "This should not fail lb:{lb_p} ub:{ub_p}. Of children its {lb} {ub}");
+            }
+        }
+        Ok(())
+    }
 
     /// Given a consumption by the leaf nodes, push this information back up to the root node.
     /// Simply each child node stipulates the minimum consumption of the branch.
