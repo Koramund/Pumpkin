@@ -1,3 +1,0 @@
-output ["x = ",showDzn(x),";\n"];
-int: n = 20;
-array [1..n] of int: x;
