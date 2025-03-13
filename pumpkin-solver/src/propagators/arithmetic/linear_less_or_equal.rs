@@ -1,4 +1,5 @@
-use crate::basic_types::PropagationStatusCP;
+use std::cell::Cell;
+use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::propagation::Propagator;
@@ -11,6 +12,7 @@ use crate::predicates::Predicate;
 use crate::variables::DomainId;
 use std::ops::Range;
 use itertools::Itertools;
+use crate::engine::propagation::contexts::ManipulateStatefulIntegers;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -25,6 +27,8 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
     // any index we want to index needs to be checked against this, should be strictly less for the index to be valid.
     // Either that or we do everything with options and filter maps.
     total_num: usize,
+
+    fixpoint: Cell<bool>,
 }
 
 impl<Var> LinearLessOrEqualPropagator<Var>
@@ -41,6 +45,7 @@ where
             partials: Box::new([]),
             b,
             total_num,
+            fixpoint: Cell::from(false),
         }
     }
 }
@@ -51,6 +56,8 @@ where
 {
     fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
         // TODO double check this size calculation
+
+        // dbg!(self.x.len(), self.c);
 
         // Note that floating precision may bite us and create a larger tree than necessary.
         let size = (self.b as f64).powf((self.x.len() as f64).powf(1.0/(self.b as f64)).ceil()) as usize - 1;
@@ -129,12 +136,40 @@ where
     ) -> PropagationStatusCP {
 
         
+        // dbg!("Going into propagation");
+        // // 
+        // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.lower_bound(p) } None => {-1} } }).collect_vec());
+        // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.upper_bound(p) } None => {-1} } }).collect_vec());
+        // 
+        // dbg!(self.x.iter().map(|x| context.lower_bound(x)).collect_vec());
+        // dbg!(self.x.iter().map(|x| context.upper_bound(x)).collect_vec());
+        // // 
+
+        // self.fixpoint.set(false);
+        // while !self.fixpoint.get() {
+        //     self.fixpoint.set(true);
+        // self.detect_inconsistency_2(&mut context)?;
         self.push_upper_bound_down(&mut context)?;
+        // self.detect_inconsistency_2(&mut context)?;
         self.push_lower_bound_down(&mut context)?;
+        // self.detect_inconsistency_2(&mut context)?;
         self.push_lower_bound_up(&mut context)?;
+        // self.detect_inconsistency_2(&mut context)?;
         self.push_upper_bound_up(&mut context)?;
-        
-        self.assert_partials_are_fixed_with_children(&mut context)?;
+        // }
+
+        // TODO now we implement the original propagation method and verify nothing would propagate.
+
+        // dbg!("Leaving propagation");
+        // 
+        // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.lower_bound(p) } None => {-1} } }).collect_vec());
+        // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.upper_bound(p) } None => {-1} } }).collect_vec());
+        // 
+        // dbg!(self.x.iter().map(|x| context.lower_bound(x)).collect_vec());
+        // dbg!(self.x.iter().map(|x| context.upper_bound(x)).collect_vec());
+
+
+        // self.assert_just_as_strong_as_default(&mut context)?;
         Ok(())
     }
 }
@@ -145,6 +180,69 @@ impl<Var: 'static> LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
+    
+    fn detect_inconsistency_2(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        // verifies that before propagation our nodes are in a "somewhat" consistent state
+        // If not then we can actually return the specific reason for this instead of trusting the resolution engine blindly.
+        for i in (0..self.partials.len()).rev() {
+            if !self.node_exists(i) {
+                continue;
+            }
+
+            let lb: i32 = self.children(i).filter_map(|j| self.get_lower(context, j)).sum();
+            if lb > self.get_upper(context, i).unwrap() {
+                let mut reason: PropositionalConjunction = self.children(i).filter(|j| self.node_exists(*j)).map(|j| self.get_pred_lower(context, j)).collect();
+                reason.push(self.get_pred_upper(context, i));
+                return Err(Inconsistency::from(reason))
+            }
+
+            let ub: i32 = self.children(i).filter_map(|j| self.get_upper(context, j)).sum();
+            if ub < self.get_lower(context, i).unwrap() {
+                let mut reason: PropositionalConjunction = self.children(i).filter(|j| self.node_exists(*j)).map(|j| self.get_pred_upper(context, j)).collect();
+                reason.push(self.get_pred_lower(context, i));
+                return Err(Inconsistency::from(reason))
+            }
+        }
+        
+        Ok(())
+    }
+
+    fn assert_just_as_strong_as_default(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        if let Some(conjunction) = self.detect_inconsistency(context.as_stateful_readonly()) {
+            return Err(conjunction.into());
+        }
+
+        let lower_bound_left_hand_side: i32 = self.x.iter().map(|x| context.lower_bound(x)).sum();
+
+        for (i, x_i) in self.x.iter().enumerate() {
+            let bound = self.c - (lower_bound_left_hand_side - context.lower_bound(x_i));
+
+
+
+            if context.upper_bound(x_i) > bound {
+                let reason: PropositionalConjunction = self
+                    .x
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(j, x_j)| {
+                        if j != i {
+                            Some(predicate![x_j >= context.lower_bound(x_j)])
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                dbg!(bound, &reason);
+                pumpkin_assert_simple!(1 == 0, "There just should not be a way we get here");
+
+                context.set_upper_bound(x_i, bound, reason)?;
+            }
+        }
+
+        Ok(())
+    }
+
 
     fn node_exists(&self, index: usize) -> bool {
         if index >= self.partials.len() {
@@ -223,6 +321,8 @@ where
     }
 
     fn set_lower(&self, context: &mut PropagationContextMut, index: usize, bound: i32, reason: PropositionalConjunction) -> PropagationStatusCP {
+        self.fixpoint.set(false);
+        // dbg!(index, bound, &reason);
         if index >= self.partials.len() {
             context.set_lower_bound(&self.x[index - self.partials.len()], bound, reason)?;
         } else {
@@ -232,6 +332,8 @@ where
     }
 
     fn set_upper(&self, context: &mut PropagationContextMut, index: usize, bound: i32, reason: PropositionalConjunction) -> PropagationStatusCP {
+        self.fixpoint.set(false);
+        // dbg!(index, bound, &reason);
         if index >= self.partials.len() {
             context.set_upper_bound(&self.x[index - self.partials.len()], bound, reason)?;
         } else {
@@ -292,11 +394,11 @@ where
                 let lb_p = self.get_lower(context, i).unwrap();
                 let ub_p = self.get_upper(context, i).unwrap();
                 // 
-                // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.lower_bound(p) } None => {-1} } }).collect_vec());
-                // dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.upper_bound(p) } None => {-1} } }).collect_vec());
-                // 
-                // dbg!(self.x.iter().map(|x| context.lower_bound(x)).collect_vec());
-                // dbg!(self.x.iter().map(|x| context.upper_bound(x)).collect_vec());
+                dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.lower_bound(p) } None => {-1} } }).collect_vec());
+                dbg!(self.partials.iter().map(|p| { match p { Some(p) => { context.upper_bound(p) } None => {-1} } }).collect_vec());
+                
+                dbg!(self.x.iter().map(|x| context.lower_bound(x)).collect_vec());
+                dbg!(self.x.iter().map(|x| context.upper_bound(x)).collect_vec());
                 
                 pumpkin_assert_simple!(lb_p == ub_p, "This should not fail lb:{lb_p} ub:{ub_p}. Of children its {lb} {ub}");
             }
@@ -315,6 +417,12 @@ where
 
             let lb: i32 = self.children(i).filter_map(|j| self.get_lower(context, j)).sum();
 
+            if lb > self.get_upper(context, i).unwrap() {
+                let mut reason: PropositionalConjunction = self.children(i).filter(|j| self.node_exists(*j)).map(|j| self.get_pred_lower(context, j)).collect();
+                reason.push(self.get_pred_upper(context, i));
+                return Err(Inconsistency::from(reason))
+            }
+            
             if lb > self.get_lower(context, i).unwrap() {
 
                 let reason: PropositionalConjunction = self.children(i).filter(|j| self.node_exists(*j)).map(|j| self.get_pred_lower(context, j)).collect();
@@ -334,6 +442,12 @@ where
 
             let ub: i32 = self.children(i).filter_map(|j| self.get_upper(context, j)).sum();
 
+            if ub < self.get_lower(context, i).unwrap() {
+                let mut reason: PropositionalConjunction = self.children(i).filter(|j| self.node_exists(*j)).map(|j| self.get_pred_upper(context, j)).collect();
+                reason.push(self.get_pred_lower(context, i));
+                return Err(Inconsistency::from(reason))
+            }
+            
             if ub < self.get_upper(context, i).unwrap() {
 
                 let reason: PropositionalConjunction = self.children(i).filter(|j| self.node_exists(*j)).map(|j| self.get_pred_upper(context, j)).collect();
@@ -356,7 +470,7 @@ where
             }
             // a propagation is responsible for checking the upperbound of the current node
             // then subtracting the lower bound of the neighbours.
-            // this then becomes the new upperbound for the node i
+            // this then becomes the new upperbound for the node j
             let total_bound = self.get_upper(context, i).unwrap() - self.children(i).filter_map(|j|self.get_lower(context, j)).sum::<i32>();
             for j in self.children(i) {
                 if !self.node_exists(j) {
@@ -365,6 +479,15 @@ where
 
                 let new_bound = total_bound + self.get_lower(context, j).unwrap();
                 // dbg!((i,j,total_bound, new_bound, self.children(i).map(|j|self.get_lower(context, j)).collect_vec()), self.children(i));
+                
+                if new_bound < self.get_lower(context, j).unwrap() {
+                    let mut reason: PropositionalConjunction = self.children(i).filter(|k| self.node_exists(*k))
+                        .map(|k| self.get_pred_lower(context, k)).collect();
+                    reason.push(self.get_pred_upper(context, i));
+                    return Err(Inconsistency::from(reason))
+                }
+                
+                
                 if new_bound < self.get_upper(context, j).unwrap() {
 
                     let mut reason: PropositionalConjunction = self.children(i).filter(|k| self.node_exists(*k))
@@ -403,6 +526,15 @@ where
                 }
 
                 let new_bound = total_bound + self.get_upper(context, j).unwrap();
+                
+                if new_bound > self.get_upper(context, j).unwrap() {
+                    let mut reason: PropositionalConjunction = self.children(i).filter(|k| self.node_exists(*k))
+                        .map(|k| self.get_pred_upper(context, k)).collect();
+
+                    reason.push(self.get_pred_lower(context, i));
+                    return Err(Inconsistency::from(reason))
+                }
+                
                 if new_bound > self.get_lower(context, j).unwrap() {
 
                     let mut reason: PropositionalConjunction = self.children(i).filter(|k| self.node_exists(*k))
