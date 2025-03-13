@@ -4,13 +4,12 @@ use std::cmp::min;
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
-use crate::engine::DomainEvents;
-use crate::engine::opaque_domain_event::OpaqueDomainEvent;
 use crate::engine::propagation::contexts::StatefulPropagationContext;
-use crate::engine::propagation::{EnqueueDecision, LocalId, PropagationContextMut};
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
+use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
+use crate::engine::DomainEvents;
 use crate::predicate;
 use crate::variables::DomainId;
 
@@ -45,11 +44,30 @@ impl<Var: 'static> Propagator for LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
+    fn name(&self) -> &str {
+        "LinearLeq"
+    }
+
+
+    fn debug_propagate_from_scratch(
+        &self,
+        mut context: PropagationContextMut,
+    ) -> PropagationStatusCP {
+        // TODO there is indeed a scenario where the lower bounds may overflow the i32.
+        self.maintain_upper_bound_consistency(&mut context)?;
+        self.update_bounds(context)?;
+
+        Ok(())
+    }
+
+    fn priority(&self) -> u32 {
+        0
+    }
+
     // This function needs to be altered to create a series of variables a_i
     fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
         let mut lower_bound_left_hand_side = 0_i32;
         let mut upper_bound_left_hand_side = 0_i32;
-        // this registers the propagator to be notified of domain changes
         let mut partial_lowers: Vec<i32> = Vec::new();
         let mut partial_uppers: Vec<i32> = Vec::new();
 
@@ -61,8 +79,7 @@ where
                 LocalId::from(i as u32),
             );
 
-
-            // saves the lower bound for the previous three values.
+            // saves the lower bound for the next partial.
             if (i % self.multiplicity) == 0 && i > 0 {
                 partial_lowers.push(lower_bound_left_hand_side);
                 partial_uppers.push(upper_bound_left_hand_side);
@@ -77,11 +94,6 @@ where
         // TODO doing that here should speed up our work?
 
         // TODO @Imko I don't think the context here actually has access but these are technically root level decisions no?
-
-        // convert partials_lower into partials by creating new variables via context.create_new_integer_variable
-        // dbg!(self.c);
-        // dbg!(self.x.iter().map(|x_i| context.lower_bound(x_i)).collect_vec());
-        // dbg!(self.x.iter().map(|x_i| context.upper_bound(x_i)).collect_vec());
         
         self.partials = partial_lowers.iter().zip(partial_uppers.iter()).map(|(&lower, &upper)| {
             context.create_new_integer_variable(lower, upper)
@@ -94,11 +106,7 @@ where
 
         Ok(())
     }
-
-
-    // very basic check that verifies we are not in a conflict.
-    // Currently only called during "incremental propagation".
-    // TODO still need to update this. Do I tho?
+    
     fn detect_inconsistency(
         &self,
         context: StatefulPropagationContext,
@@ -119,40 +127,11 @@ where
                 .collect();
             if self.partials.len() > 0 {
                 reason.add(predicate!(self.partials[self.partials.len()-1] >= context.lower_bound(&self.partials[self.partials.len()-1])));
-                // dbg!(&self.partials[self.partials.len()-1]);
             }
-            // dbg!(&reason);
             Some(reason)
         } else {
             None
         }
-    }
-
-    fn priority(&self) -> u32 {
-        0
-    }
-
-    fn name(&self) -> &str {
-        "LinearLeq"
-    }
-        
-    fn debug_propagate_from_scratch(
-        &self,
-        mut context: PropagationContextMut,
-    ) -> PropagationStatusCP {
-        // So there is indeed a scenario where the lower bounds may overflow the i32.
-        // That is an issue that will not be resolved for now.
-        // let lower_bound_left_hand_side = self
-        //     .x
-        //     .iter()
-        //     .map(|var| context.lower_bound(var) as i64)
-        //     .sum::<i64>();
-
-
-        self.maintain_upper_bound_consistency(&mut context)?;
-        self.update_bounds(context)?;
-
-        Ok(())
     }
 }
 
@@ -160,7 +139,6 @@ impl<Var: 'static> LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
-    // This function is responsible for setting the upperbounds of the partials
     /// This is responsible for setting a <= n.
     fn maintain_upper_bound_consistency(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         // // TODO this only takes care of UB of a into its surrounds.
@@ -175,17 +153,11 @@ where
             let end = self.x.len();
 
             let new_ub = self.c - self.x[start..end].iter().map(|value| {context.lower_bound(value)}).sum::<i32>();
-            // dbg!(&new_ub);
             if new_ub < context.upper_bound(&last_partial) {
                 let last_partial_reason: PropositionalConjunction = self.x[start..end].iter().map(|value| {predicate!(value >= context.lower_bound(value))}).collect();
-                // dbg!(("last", new_ub, &last_partial_reason));
                 context.set_upper_bound(&last_partial, new_ub, last_partial_reason)?;
             }
         }
-
-        // dbg!(self.partials.iter().map(|p| {context.lower_bound(p)}).collect_vec());
-        // dbg!(self.partials.iter().map(|p| {context.upper_bound(p)}).collect_vec());
-        // dbg!(self.x.iter().map(|p| {context.lower_bound(p)}).collect_vec());
         
         // update the upperbounds of all the other a variables.
         // it loops over a_i but ever loop updates a_i - 1
@@ -195,8 +167,7 @@ where
             if i > 0 && new_ub_for_prev_a < context.upper_bound(&self.partials[i - 1]) {
                 let mut reason: PropositionalConjunction = self.x[i * self.multiplicity..(i + 1) * self.multiplicity].iter().map(|value| predicate!(value >= context.lower_bound(value))).collect();
                 reason.add(predicate!(a_i <= context.upper_bound(a_i)));
-
-                // dbg!((i, new_ub_for_prev_a, &reason));
+                
                 context.set_upper_bound(&self.partials[i - 1], new_ub_for_prev_a, reason)?;
             }
         };
@@ -209,11 +180,6 @@ impl<Var: 'static> LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
-    // now comes the tricky part. Updating the bounds in such a way that we rely on the partials.
-    // the best way is to probably just track which variables have already been activated.
-    // If any variable is assigned it is explained by the values in its partial and the previous partial.
-    // If a variable to the right has been activated it will also be used in this conjunction.
-    // This way we can still get the partials in there if the order is violated.
     /// Updates the bounds of all the variables `x`
     /// Note that it calls update_partials to ensure consistency before propagating.
     /// Responsible for setting x_i <= n
@@ -227,15 +193,13 @@ where
 
             let start = (i / self.multiplicity) * self.multiplicity;
             let end = min(start + self.multiplicity, self.x.len());
-
             let surrounding_consumption: i32 = self.x[start..end].iter().map(|x_j| {context.lower_bound(x_j)}).sum::<i32>() - context.lower_bound(x_i) +
                 if i >= self.multiplicity {context.lower_bound(&self.partials[i/ self.multiplicity-1])} else {0};
-
             // The remaining energy is determined by the next partials upper bound as that explains how much energy has been consumed ahead.
             let upperbound = if i/self.multiplicity < self.partials.len() {context.upper_bound(&self.partials[i/self.multiplicity])} else {self.c};
             let bound = upperbound - surrounding_consumption;
             
-            // dbg!(surrounding_consumption, bound);
+
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
             if context.upper_bound(x_i) > bound {
@@ -266,8 +230,6 @@ where
                     reason.push(predicate!(a <= context.upper_bound(a)))
                 }
 
-                // then update the variable
-                // dbg!(i, bound, &reason);
                 context.set_upper_bound(x_i, bound, reason)?;
             }
         }
@@ -290,7 +252,6 @@ where
             }
 
             if partial_bound > context.lower_bound(a_i) {
-                // dbg!((i, partial_bound, context.lower_bound(a_i)));
                 // update value of the partial.
 
                 let start = i * self.multiplicity;
@@ -308,8 +269,7 @@ where
                 if i > 0 {
                     reason.push(predicate!(self.partials[i-1] >= context.lower_bound(&self.partials[i-1])));
                 }
-
-                // dbg!((i, partial_bound, &reason));
+                
                 context.set_lower_bound(a_i, partial_bound, reason)?;
             }
         }

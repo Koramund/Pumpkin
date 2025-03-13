@@ -69,14 +69,11 @@ impl ConflictResolver for ResolutionResolver {
     fn resolve_conflict(&mut self, context: &mut ConflictAnalysisContext) -> Option<LearnedNogood> {
         self.clean_up();
 
-        // dbg!(&self.reason_buffer);
-
         // Initialise the data structures with the conflict nogood.
         for predicate in context
             .get_conflict_nogood(context.is_completing_proof)
             .iter()
         {
-            // dbg!(predicate);
             self.add_predicate_to_conflict_nogood(
                 *predicate,
                 context.assignments,
@@ -111,7 +108,6 @@ impl ConflictResolver for ResolutionResolver {
                 AnalysisMode::AllDecision => self.to_process_heap.num_nonremoved_elements() > 0,
             }
         } {
-            // dbg!(self.to_process_heap.num_nonremoved_elements());
             // Replace the predicate from the nogood that has been assigned last on the trail.
             //
             // This is done in two steps:
@@ -418,10 +414,8 @@ impl ResolutionResolver {
         // First we obtain a semantically minimised nogood.
         //
         // We reuse the vector with lower decision levels for simplicity.
-        // dbg!(&self.to_process_heap);
         if self.to_process_heap.num_nonremoved_elements() > 0 {
             let last_predicate = self.pop_predicate_from_conflict_nogood();
-            // dbg!(last_predicate);
             self.processed_nogood_predicates.push(last_predicate);
         } else {
             pumpkin_assert_simple!(matches!(self.mode, AnalysisMode::AllDecision), "If the heap is empty when extracting the final nogood then we should be performing all decision learning")
@@ -481,9 +475,6 @@ impl ResolutionResolver {
             // For unit nogoods, the solver backtracks to the root level.
             0
         };
-
-        // dbg!(&backjump_level);
-        // dbg!(&clean_nogood);
 
         pumpkin_assert_advanced!(clean_nogood
             .iter()
