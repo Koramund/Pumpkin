@@ -617,7 +617,6 @@ fn compile_int_lin_predicate<C: Constraint>(
     let vars = context.resolve_integer_variable_array(&exprs[1])?;
     let rhs = context.resolve_integer_constant_from_expr(&exprs[2])?;
     
-    dbg!(rhs);
 
     let terms = weighted_vars(weights, vars);
 
