@@ -194,6 +194,12 @@ where
         // Main loop to update the upper bound of every X based on its local capacity and consumption.
         for i_x in 0..self.x.len() {
 
+            // Mandatory consumption is not a valid thing to define for the last x variables.
+            // As self.c has no direct lower bound we cannot dictate this value.
+            if i_x / self.multiplicity >= self.partials.len() {
+                continue;
+            }
+
             // determine variables shared under the partial
             let l_start = (i_x / self.m) * self.m;
             let l_end = min(l_start + self.m, self.x.len());
@@ -206,7 +212,7 @@ where
                 + if i_x >= self.multiplicity { context.upper_bound(&self.partials[i_x / self.multiplicity - 1]) } else { 0 };
 
             // The mandatory consumption is determined by the next partials lower bound as that explains how much energy must be consumed here.
-            let mandatory_consumption_a = if i_x / self.multiplicity < self.partials.len() { context.lower_bound(&self.partials[i_x / self.multiplicity]) } else { 0 };
+            let mandatory_consumption_a = context.lower_bound(&self.partials[i_x / self.multiplicity]);
             let bound = mandatory_consumption_a - surrounding_max_consumption;
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
@@ -285,10 +291,16 @@ where
 
     fn push_lower_bound_down(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         for (i, a_i) in self.partials.iter().enumerate().rev() {
+            // Mandatory consumption is not a valid thing to define for the last partial
+            // As self.c has no direct lower bound we cannot dictate this value.
+            if i >= self.partials.len() - 1 {
+                continue;
+            }
+            
             let l_start = min((i + 1) * self.m, self.x.len());
             let l_end = min(l_start + self.m, self.x.len());
 
-            let mandatory_consumption = if i < self.partials.len() - 1 {context.lower_bound(&self.partials[i + 1])} else {0}
+            let mandatory_consumption = context.lower_bound(&self.partials[i + 1])
                 - self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>();
 
             if mandatory_consumption > context.lower_bound(a_i) {
