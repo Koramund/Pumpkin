@@ -11,6 +11,7 @@ use crate::variables::DomainId;
 use crate::{predicate, pumpkin_assert_simple};
 use itertools::Itertools;
 use std::ops::Range;
+use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -21,20 +22,21 @@ pub(crate) struct LinearLessOrEqualPropagatorTotalizer<Var> {
     // Represents the partial sums.
     partials: Box<[Option<DomainId>]>,
     b: usize,
+
+    shuffle_strategy: Shuffle,
 }
 
 impl<Var> LinearLessOrEqualPropagatorTotalizer<Var>
 where
     Var: IntegerVariable,
 {
-    pub(crate) fn new(x: Box<[Var]>, c: i32) -> Self {
-        let b = 2;
-
+    pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle, b: usize) -> Self {
         LinearLessOrEqualPropagatorTotalizer::<Var> {
             x,
             c,
             partials: Box::new([]),
             b,
+            shuffle_strategy,
         }
     }
 }
@@ -65,8 +67,13 @@ where
     }
 
     fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
-        // TODO double check this size calculation
+        match self.shuffle_strategy {
+            Shuffle::None => {}
+            Shuffle::Scalar => {self.x = proxy_sort(&self.x, &self.x.iter().map(|x| x.get_scale()).collect_vec().into_boxed_slice())}
+            Shuffle::Random => {self.x = random_shuffle(&self.x, 42)}
+        }
 
+        // TODO double check this size calculation
         // Note that floating precision may bite us and create a larger tree than necessary.
         let size = (self.b as f64).powf((self.x.len() as f64).powf(1.0/(self.b as f64)).ceil()) as usize - 1;
 
@@ -397,7 +404,7 @@ mod tests {
         let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 2))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -428,7 +435,7 @@ mod tests {
         let y = solver.new_variable(0, 10);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), 7))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), 7, Shuffle::None, 2))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -446,7 +453,7 @@ mod tests {
         let y = solver.new_variable(1, 1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MAX))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MAX, Shuffle::None, 2))
             .expect_err("Expected overflow to be detected");
     }
 
@@ -458,7 +465,7 @@ mod tests {
         let y = solver.new_variable(-1, -1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MIN))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MIN, Shuffle::None, 2))
             .expect("Expected no error to be detected");
     }
 }

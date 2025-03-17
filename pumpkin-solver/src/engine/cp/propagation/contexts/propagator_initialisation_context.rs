@@ -91,7 +91,7 @@ impl PropagatorInitialisationContext<'_> {
     }
 
 
-    pub fn create_new_integer_variable(
+    pub(crate) fn create_new_integer_variable(
         &mut self,
         lower_bound: i32,
         upper_bound: i32,
