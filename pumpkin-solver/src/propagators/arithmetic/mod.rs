@@ -5,3 +5,4 @@ pub(crate) mod linear_less_or_equal_sequential;
 pub(crate) mod linear_not_equal;
 pub(crate) mod maximum;
 pub(crate) mod linear_less_or_equal_default;
+pub(crate) mod linear_less_or_equal_totalizer;
