@@ -21,7 +21,6 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
 
     // Represents the partial sums.
     partials: Box<[DomainId]>,
-    multiplicity: usize,
     m: usize,
 }
 
@@ -30,13 +29,13 @@ where
     Var: IntegerVariable,
 {
     pub(crate) fn new(x: Box<[Var]>, c: i32) -> Self {
-        let multiplicity = 2;
+        let m = 2;
 
         LinearLessOrEqualPropagator::<Var> {
             x,
             c,
             partials: Box::new([]),
-            multiplicity,
+            m,
             m: multiplicity,
         }
     }
@@ -87,7 +86,7 @@ where
             );
 
             // saves the lower bound for the next partial.
-            if (i % self.multiplicity) == 0 && i > 0 {
+            if (i % self.m) == 0 && i > 0 {
                 partial_lowers.push(lower_bound_left_hand_side);
                 partial_uppers.push(upper_bound_left_hand_side);
             }
@@ -114,7 +113,7 @@ where
         context: StatefulPropagationContext,
     ) -> Option<PropositionalConjunction> {
 
-        let start = self.x.len() - (((self.x.len() - 1) % self.multiplicity) + 1);
+        let start = self.x.len() - (((self.x.len() - 1) % self.m) + 1);
         let end = self.x.len();
 
         let lb: i32 = self.x[start..end]
@@ -154,10 +153,10 @@ where
             // Sum all nodes under the partial - the node itself + the lb of the previous partial
             let surrounding_consumption: i32 = self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>()
                 - context.lower_bound(x_i)
-                + if i_x >= self.multiplicity { context.lower_bound(&self.partials[i_x / self.multiplicity - 1]) } else { 0 };
+                + if i_x >= self.m { context.lower_bound(&self.partials[i_x / self.m - 1]) } else { 0 };
 
             // The remaining energy is determined by the next partials upper bound as that explains how much energy has been consumed ahead.
-            let upperbound = if i_x / self.multiplicity < self.partials.len() { context.upper_bound(&self.partials[i_x / self.multiplicity]) } else { self.c };
+            let upperbound = if i_x / self.m < self.partials.len() { context.upper_bound(&self.partials[i_x / self.m]) } else { self.c };
             let bound = upperbound - surrounding_consumption;
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
@@ -169,14 +168,14 @@ where
                 } else { None }).collect();
 
                 // lower bound of previous partial if it exists
-                if i_x >= self.multiplicity {
-                    let a = &self.partials[(i_x / self.multiplicity) - 1];
+                if i_x >= self.m {
+                    let a = &self.partials[(i_x / self.m) - 1];
                     reason.push(predicate!(a >= context.lower_bound(a)))
                 }
 
                 // Upper bound of next partial is required as it determines energy capacity
-                if i_x / self.multiplicity < self.partials.len() {
-                    let a = &self.partials[i_x / self.multiplicity];
+                if i_x / self.m < self.partials.len() {
+                    let a = &self.partials[i_x / self.m];
                     reason.push(predicate!(a <= context.upper_bound(a)))
                 }
 
@@ -196,7 +195,7 @@ where
 
             // Mandatory consumption is not a valid thing to define for the last x variables.
             // As self.c has no direct lower bound we cannot dictate this value.
-            if i_x / self.multiplicity >= self.partials.len() {
+            if i_x / self.m >= self.partials.len() {
                 continue;
             }
 
@@ -209,10 +208,10 @@ where
             // Sum all nodes under the partial - the node itself + the ub of the previous partial
             let surrounding_max_consumption: i32 = self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>()
                 - context.upper_bound(x_i)
-                + if i_x >= self.multiplicity { context.upper_bound(&self.partials[i_x / self.multiplicity - 1]) } else { 0 };
+                + if i_x >= self.m { context.upper_bound(&self.partials[i_x / self.m - 1]) } else { 0 };
 
             // The mandatory consumption is determined by the next partials lower bound as that explains how much energy must be consumed here.
-            let mandatory_consumption_a = context.lower_bound(&self.partials[i_x / self.multiplicity]);
+            let mandatory_consumption_a = context.lower_bound(&self.partials[i_x / self.m]);
             let bound = mandatory_consumption_a - surrounding_max_consumption;
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
@@ -224,14 +223,14 @@ where
                 } else { None }).collect();
 
                 // lower bound of previous partial if it exists
-                if i_x >= self.multiplicity {
-                    let a = &self.partials[(i_x / self.multiplicity) - 1];
+                if i_x >= self.m {
+                    let a = &self.partials[(i_x / self.m) - 1];
                     reason.push(predicate!(a <= context.upper_bound(a)))
                 }
 
                 // Upper bound of next partial is required as it determines energy capacity
-                if i_x / self.multiplicity < self.partials.len() {
-                    let a = &self.partials[i_x / self.multiplicity];
+                if i_x / self.m < self.partials.len() {
+                    let a = &self.partials[i_x / self.m];
                     reason.push(predicate!(a >= context.lower_bound(a)))
                 }
 
