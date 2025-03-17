@@ -1,6 +1,4 @@
-use itertools::Itertools;
-use std::cmp::min;
-
+use crate::basic_types::linear_options::Shuffle;
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
@@ -10,8 +8,14 @@ use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
 use crate::engine::DomainEvents;
-use crate::predicate;
 use crate::variables::DomainId;
+use crate::{predicate, pumpkin_assert_simple};
+use itertools::Itertools;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
+use std::cmp::min;
+
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -22,13 +26,15 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
     // Represents the partial sums.
     partials: Box<[DomainId]>,
     m: usize,
+    
+    shuffle_strategy: Shuffle,
 }
 
 impl<Var> LinearLessOrEqualPropagator<Var>
 where
     Var: IntegerVariable,
 {
-    pub(crate) fn new(x: Box<[Var]>, c: i32) -> Self {
+    pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle) -> Self {
         let m = 2;
 
         LinearLessOrEqualPropagator::<Var> {
@@ -36,10 +42,26 @@ where
             c,
             partials: Box::new([]),
             m,
-            m: multiplicity,
+            shuffle_strategy,
         }
     }
 }
+
+pub(crate) fn random_shuffle<T: Clone>(arr: &Box<[T]>, seed: u64) -> Box<[T]> {
+    let mut rng = StdRng::seed_from_u64(seed);
+    let mut new_arr: Vec<T> = arr.to_vec();
+    new_arr.shuffle(&mut rng);
+    new_arr.into_boxed_slice()
+}
+
+pub(crate) fn proxy_sort<T: Clone>(arr: &Box<[T]>, keys: &Box<[i32]>) -> Box<[T]> {
+    pumpkin_assert_simple!(arr.len() == keys.len(), "Sorting by argsort requires equal lengths");
+    
+    let mut paired: Vec<(T, i32)> = arr.iter().cloned().zip(keys.iter().cloned()).collect();
+    paired.sort_by_key(|&(_, key)| key);
+    paired.into_iter().map(|(val, _)| val).collect::<Vec<_>>().into_boxed_slice()
+}
+
 
 impl<Var: 'static> Propagator for LinearLessOrEqualPropagator<Var>
 where
@@ -77,6 +99,12 @@ where
         let mut partial_lowers: Vec<i32> = Vec::new();
         let mut partial_uppers: Vec<i32> = Vec::new();
 
+        match self.shuffle_strategy {
+            Shuffle::None => {}
+            Shuffle::Scalar => {self.x = proxy_sort(&self.x, &self.x.iter().map(|x| x.get_scale()).collect_vec().into_boxed_slice())}
+            Shuffle::Random => {self.x = random_shuffle(&self.x, 42)}
+        }
+        
         self.x.iter().enumerate().for_each(|(i, x_i)| {
 
             let _ = context.register(
@@ -354,7 +382,7 @@ mod tests {
         let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([z,z1, x2, x, y, p].into(), 12))
+            .new_propagator(LinearLessOrEqualPropagator::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -382,7 +410,7 @@ mod tests {
         let y = solver.new_variable(0, 10);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), 7))
+            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), 7, Shuffle::None))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -400,7 +428,7 @@ mod tests {
         let y = solver.new_variable(1, 1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), i32::MAX))
+            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), i32::MAX, Shuffle::None))
             .expect_err("Expected overflow to be detected");
     }
 
@@ -412,7 +440,7 @@ mod tests {
         let y = solver.new_variable(-1, -1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), i32::MIN))
+            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), i32::MIN, Shuffle::None))
             .expect("Expected no error to be detected");
     }
 }

@@ -55,7 +55,7 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
         if self.terms.len() < 4 {
             LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)
         } else {
-            LinearLessOrEqualPropagator::new(self.terms, self.rhs).post(solver, tag)
+            LinearLessOrEqualPropagator::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone()).post(solver, tag)
         }
     }
 

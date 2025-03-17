@@ -19,6 +19,9 @@ pub trait IntegerVariable:
 {
     type AffineView: IntegerVariable;
 
+    /// Returns the scale of the underneath variable
+    fn get_scale(&self) -> i32;
+    
     /// Get the lower bound of the variable.
     fn lower_bound(&self, assignment: &Assignments) -> i32;
 

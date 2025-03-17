@@ -288,7 +288,7 @@
 //!  ```
 #[cfg(doc)]
 use crate::results::unsatisfiable::UnsatisfiableUnderAssumptions;
-pub(crate) mod basic_types;
+pub mod basic_types;
 pub mod containers;
 pub(crate) mod engine;
 pub(crate) mod math;
