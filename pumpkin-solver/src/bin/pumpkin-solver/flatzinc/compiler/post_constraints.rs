@@ -616,6 +616,7 @@ fn compile_int_lin_predicate<C: Constraint>(
     let weights = context.resolve_array_integer_constants(&exprs[0])?;
     let vars = context.resolve_integer_variable_array(&exprs[1])?;
     let rhs = context.resolve_integer_constant_from_expr(&exprs[2])?;
+    
 
     let terms = weighted_vars(weights, vars);
 
