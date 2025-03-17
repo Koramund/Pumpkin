@@ -14,7 +14,7 @@ use std::ops::Range;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
-pub(crate) struct LinearLessOrEqualPropagator<Var> {
+pub(crate) struct LinearLessOrEqualPropagatorTotalizer<Var> {
     x: Box<[Var]>,
     c: i32,
 
@@ -23,14 +23,14 @@ pub(crate) struct LinearLessOrEqualPropagator<Var> {
     b: usize,
 }
 
-impl<Var> LinearLessOrEqualPropagator<Var>
+impl<Var> LinearLessOrEqualPropagatorTotalizer<Var>
 where
     Var: IntegerVariable,
 {
     pub(crate) fn new(x: Box<[Var]>, c: i32) -> Self {
         let b = 2;
 
-        LinearLessOrEqualPropagator::<Var> {
+        LinearLessOrEqualPropagatorTotalizer::<Var> {
             x,
             c,
             partials: Box::new([]),
@@ -39,7 +39,7 @@ where
     }
 }
 
-impl<Var: 'static> Propagator for LinearLessOrEqualPropagator<Var>
+impl<Var: 'static> Propagator for LinearLessOrEqualPropagatorTotalizer<Var>
 where
     Var: IntegerVariable,
 {
@@ -116,7 +116,7 @@ where
 
 
 
-impl<Var: 'static> LinearLessOrEqualPropagator<Var>
+impl<Var: 'static> LinearLessOrEqualPropagatorTotalizer<Var>
 where
     Var: IntegerVariable,
 {
@@ -397,7 +397,7 @@ mod tests {
         let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([z,z1, x2, x, y, p].into(), 12))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -428,7 +428,7 @@ mod tests {
         let y = solver.new_variable(0, 10);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), 7))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), 7))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -446,7 +446,7 @@ mod tests {
         let y = solver.new_variable(1, 1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), i32::MAX))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MAX))
             .expect_err("Expected overflow to be detected");
     }
 
@@ -458,7 +458,7 @@ mod tests {
         let y = solver.new_variable(-1, -1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagator::new([x, y].into(), i32::MIN))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MIN))
             .expect("Expected no error to be detected");
     }
 }
