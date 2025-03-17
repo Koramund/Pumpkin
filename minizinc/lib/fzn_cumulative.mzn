@@ -10,11 +10,7 @@ predicate fzn_cumulative(array[int] of var int: s,
         index_set(s) == index_set(d) /\ index_set(s) == index_set(r),
         "cumulative: the 3 array arguments must have identical index sets",
         forall(i in index_set(d))(d[i] >= 0 /\ r[i] >= 0)
-	/\  if is_fixed(d) /\ is_fixed(r) /\ is_fixed(b) then
-		    fzn_decomposition_cumulative(s, fix(d), fix(r), fix(b))
-	    else
-            fzn_decomposition_cumulative(s, d, r, b)
-	    endif
+	/\  fzn_decomposition_cumulative(s, d, r, b)
     );
 
 % The following predicate is taken from https://github.com/MiniZinc/libminizinc/blob/2.5.5/share/minizinc/std/cumulative.mzn
@@ -55,13 +51,7 @@ predicate decomposition_cumulative(array[int] of var int: s,
                 {i | i in index_set(s) where ub(r[i]) > 0 /\ ub(d[i]) > 0 }
         } in
             if 0==card(Tasks) then /*true*/ 0==card(index_set(s)) \/ b>=0
-            else
-                let {
-                    int: early = min([ lb(s[i])            | i in Tasks ]),
-                    int: late  = max([ ub(s[i]) + ub(d[i]) | i in Tasks ])
-                } in (
-                    fzn_cumulative_time(s, d, r, b)
-                )
+            else fzn_cumulative_time(s, d, r, b)
             endif
             ;
 

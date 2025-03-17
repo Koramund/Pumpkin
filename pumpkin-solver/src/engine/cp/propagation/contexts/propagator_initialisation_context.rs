@@ -89,9 +89,8 @@ impl PropagatorInitialisationContext<'_> {
 
         var
     }
-
-
-    pub fn create_new_integer_variable(
+    
+    pub(crate) fn create_new_integer_variable(
         &mut self,
         lower_bound: i32,
         upper_bound: i32,
@@ -105,7 +104,6 @@ impl PropagatorInitialisationContext<'_> {
         self.watch_list.grow();
         domain_id
     }
-
 
     /// Subscribes the propagator to the given [`DomainEvents`] when they are undone during
     /// backtracking. This method is complementary to [`PropagatorConstructorContext::register`],
