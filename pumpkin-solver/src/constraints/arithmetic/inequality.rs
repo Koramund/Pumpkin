@@ -2,7 +2,7 @@ use std::num::NonZero;
 
 use crate::constraints::Constraint;
 use crate::constraints::NegatableConstraint;
-use crate::propagators::linear_less_or_equal::LinearLessOrEqualPropagator;
+use crate::propagators::linear_less_or_equal_sequential::LinearLessOrEqualPropagatorSequential;
 use crate::variables::IntegerVariable;
 use crate::ConstraintOperationError;
 use crate::propagators::linear_less_or_equal_default::LinearLessOrEqualPropagatorDefault;
@@ -55,7 +55,7 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
         if self.terms.len() < 4 {
             LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)
         } else {
-            LinearLessOrEqualPropagator::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone()).post(solver, tag)
+            LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone()).post(solver, tag)
         }
     }
 
