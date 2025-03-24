@@ -75,7 +75,8 @@ where
 
         // TODO double check this size calculation
         // Note that floating precision may bite us and create a larger tree than necessary.
-        let size = (self.b as f64).powf((self.x.len() as f64).powf(1.0/(self.b as f64)).ceil()) as usize - 1;
+        let height = (self.x.len() as f64).log(self.b as f64).ceil() as u32;
+        let size = (((self.b.pow(height) - 1) as f64) / ((self.b - 1) as f64).ceil()) as usize;
 
         self.partials = vec![None; size].into_boxed_slice();
 
@@ -404,7 +405,7 @@ mod tests {
         let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 3))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -414,6 +415,7 @@ mod tests {
             EnqueueDecision::Enqueue => {solver.propagate(propagator).expect("non-empty domain");}
             EnqueueDecision::Skip => {}
         }
+        solver.propagate(propagator).expect("non-empty domain");
         
         println!("{:?}", solver.reason_store);
 
