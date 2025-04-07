@@ -93,7 +93,7 @@ where
             );
 
             // saves the lower bound for the next partial.
-            if (i % self.m) == 0 && i > 0 {
+            if (i % self.m) == 0 {
                 partial_lowers.push(lower_bound_left_hand_side);
                 partial_uppers.push(upper_bound_left_hand_side);
             }
@@ -102,6 +102,16 @@ where
             lower_bound_left_hand_side += context.lower_bound(x_i);
             upper_bound_left_hand_side += context.upper_bound(x_i);
         });
+
+        // Error out if the propagator is unfeasible at root.
+        if lower_bound_left_hand_side > self.c {
+            return Err(PropositionalConjunction::new(
+                self.x.iter().map(|x_i| predicate!(x_i >= context.lower_bound(x_i))).collect(),
+            ))
+        }
+        
+        partial_lowers.push(lower_bound_left_hand_side);
+        partial_uppers.push(self.c);
 
         self.partials = partial_lowers.iter().zip(partial_uppers.iter()).map(|(&lower, &upper)| {
             context.create_new_integer_variable(lower, upper)
@@ -156,37 +166,30 @@ where
             let l_end = min(l_start + self.m, self.x.len());
 
             let x_i = &self.x[i_x];
+            
+            let a_prev = &self.partials[i_x / self.m];
+            let a_next = &self.partials[i_x / self.m + 1];
 
             // Sum all nodes under the partial - the node itself + the lb of the previous partial
-            let surrounding_consumption: i32 = self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>()
-                - context.lower_bound(x_i)
-                + if i_x >= self.m { context.lower_bound(&self.partials[i_x / self.m - 1]) } else { 0 };
-
-            // The remaining energy is determined by the next partials upper bound as that explains how much energy has been consumed ahead.
-            let upperbound = if i_x / self.m < self.partials.len() { context.upper_bound(&self.partials[i_x / self.m]) } else { self.c };
-            let bound = upperbound - surrounding_consumption;
-
+            let new_ub: i32 = context.upper_bound(a_next)
+                - self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>()
+                + context.lower_bound(x_i)
+                - context.lower_bound(a_prev);
+            
             // if the previous capacity of x_i is larger, then we want to lower bound it.
-            if context.upper_bound(x_i) > bound {
+            if context.upper_bound(x_i) > new_ub {
 
                 // get lower bounds of neighbours
-                let mut reason: PropositionalConjunction = (l_start..l_end).filter_map(|j| if j != i_x {
-                    Some(predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
-                } else { None }).collect();
-
-                // lower bound of previous partial if it exists
-                if i_x >= self.m {
-                    let a = &self.partials[(i_x / self.m) - 1];
-                    reason.push(predicate!(a >= context.lower_bound(a)))
-                }
-
-                // Upper bound of next partial is required as it determines energy capacity
-                if i_x / self.m < self.partials.len() {
-                    let a = &self.partials[i_x / self.m];
-                    reason.push(predicate!(a <= context.upper_bound(a)))
-                }
-
-                context.set_upper_bound(x_i, bound, reason)?;
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .filter_map(|j| 
+                        if j != i_x {
+                            Some(predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
+                        } else { None })
+                    .chain(std::iter::once(predicate!(a_prev >= context.lower_bound(a_prev))))
+                    .chain(std::iter::once(predicate!(a_next <= context.upper_bound(a_next))))
+                    .collect();
+                
+                context.set_upper_bound(x_i, new_ub, reason)?;
             }
         }
         
@@ -199,49 +202,37 @@ where
 
         // Main loop to update the upper bound of every X based on its local capacity and consumption.
         for i_x in 0..self.x.len() {
-
-            // Mandatory consumption is not a valid thing to define for the last x variables.
-            // As self.c has no direct lower bound we cannot dictate this value.
-            if i_x / self.m >= self.partials.len() {
-                continue;
-            }
-
+            
             // determine variables shared under the partial
             let l_start = (i_x / self.m) * self.m;
             let l_end = min(l_start + self.m, self.x.len());
 
             let x_i = &self.x[i_x];
 
+            let a_prev = &self.partials[i_x / self.m];
+            let a_next = &self.partials[i_x / self.m + 1];
+            
             // Sum all nodes under the partial - the node itself + the ub of the previous partial
-            let surrounding_max_consumption: i32 = self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>()
-                - context.upper_bound(x_i)
-                + if i_x >= self.m { context.upper_bound(&self.partials[i_x / self.m - 1]) } else { 0 };
-
-            // The mandatory consumption is determined by the next partials lower bound as that explains how much energy must be consumed here.
-            let mandatory_consumption_a = context.lower_bound(&self.partials[i_x / self.m]);
-            let bound = mandatory_consumption_a - surrounding_max_consumption;
+            let mandatory_consumpotion: i32 =
+                context.lower_bound(a_next)
+                - self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>()
+                + context.upper_bound(x_i)
+                - context.upper_bound(a_prev);
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
-            if context.lower_bound(x_i) < bound {
+            if context.lower_bound(x_i) < mandatory_consumpotion {
 
                 // get lower bounds of neighbours
-                let mut reason: PropositionalConjunction = (l_start..l_end).filter_map(|j| if j != i_x {
-                    Some(predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
-                } else { None }).collect();
-
-                // lower bound of previous partial if it exists
-                if i_x >= self.m {
-                    let a = &self.partials[(i_x / self.m) - 1];
-                    reason.push(predicate!(a <= context.upper_bound(a)))
-                }
-
-                // Upper bound of next partial is required as it determines energy capacity
-                if i_x / self.m < self.partials.len() {
-                    let a = &self.partials[i_x / self.m];
-                    reason.push(predicate!(a >= context.lower_bound(a)))
-                }
-
-                context.set_lower_bound(x_i, bound, reason)?;
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .filter_map(|j| 
+                        if j != i_x {
+                            Some(predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
+                        } else { None })
+                    .chain(std::iter::once(predicate!(a_prev <= context.upper_bound(a_prev))))
+                    .chain(std::iter::once(predicate!(a_next >= context.lower_bound(a_next))))
+                    .collect();
+                
+                context.set_lower_bound(x_i, mandatory_consumpotion, reason)?;
             }
         }
         Ok(())
@@ -250,21 +241,23 @@ where
     fn push_lower_bound_up(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         // We now update the LB of our a to see if any are out of date.
         // It simply checks if all the lower bounds below it summed > the current LB.
-        for (i, a_i) in self.partials.iter().enumerate() {
+        
+        // Note the enumerate reset trick here. By slicing the initial array enumerate is an i-1 type var.
+        for (i, a_i) in self.partials[1..self.partials.len()].iter().enumerate() {
             let l_start = i * self.m;
             let l_end = min(l_start + self.m, self.x.len());
+            let a_prev = &self.partials[i];
 
             // all nodes before the partial have some UB
             let total_lb = self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>()
-                + if i > 0 { context.lower_bound(&self.partials[i - 1]) } else { 0 };
+                + context.lower_bound(a_prev);
 
             if total_lb > context.lower_bound(a_i) {
-                let mut reason: PropositionalConjunction = (l_start..l_end).map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j]))).collect();
-
-                if i > 0 {
-                    let a = &self.partials[i - 1];
-                    reason.push(predicate!(a >= context.lower_bound(a)))
-                }
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_prev >= context.lower_bound(a_prev))))
+                    .collect();
+                
                 context.set_lower_bound(a_i, total_lb, reason)?
             }
         }
@@ -274,21 +267,21 @@ where
     fn push_upper_bound_up(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         // We now update the UB of our to see if any are out of date.
         // It simply checks if all the upperbounds below it summed < the current UB.
-        for (i, a_i) in self.partials.iter().enumerate() {
+        for (i, a_i) in self.partials[1..self.partials.len()].iter().enumerate() {
             let l_start = i * self.m;
             let l_end = min(l_start + self.m, self.x.len());
+            let a_prev = &self.partials[i];
 
             // all nodes before the partial have some UB
             let total_ub = self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>()
-                + if i > 0 { context.upper_bound(&self.partials[i - 1]) } else { 0 };
+                + context.upper_bound(a_prev);
 
             if total_ub < context.upper_bound(a_i) {
-                let mut reason: PropositionalConjunction = (l_start..l_end).map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j]))).collect();
-
-                if i > 0 {
-                    let a = &self.partials[i - 1];
-                    reason.push(predicate!(a <= context.upper_bound(a)))
-                }
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_prev <= context.upper_bound(a_prev))))
+                    .collect();
+                
                 context.set_upper_bound(a_i, total_ub, reason)?
             }
         }
@@ -296,26 +289,26 @@ where
     }
 
     fn push_lower_bound_down(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
-        for (i, a_i) in self.partials.iter().enumerate().rev() {
-            // Mandatory consumption is not a valid thing to define for the last partial
-            // As self.c has no direct lower bound we cannot dictate this value.
-            if i >= self.partials.len() - 1 {
+        for (i, a_i) in self.partials[1..self.partials.len()].iter().enumerate().rev() {
+            // Mandatory consumption is not a valid thing to define for the last partial as it has no neighbours.
+            // note that due to enumerate this is off by -2 instead of -1
+            if i >= self.partials.len() - 2 {
                 continue;
             }
             
             let l_start = min((i + 1) * self.m, self.x.len());
             let l_end = min(l_start + self.m, self.x.len());
+            let a_next = &self.partials[i+2];
 
-            let mandatory_consumption = context.lower_bound(&self.partials[i + 1])
+            let mandatory_consumption = context.lower_bound(a_next)
                 - self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>();
 
             if mandatory_consumption > context.lower_bound(a_i) {
-                let mut reason: PropositionalConjunction = (l_start..l_end).map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j]))).collect();
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_next >= context.lower_bound(a_next))))
+                    .collect();
                 
-                if i < self.partials.len() - 1 {
-                    let a = &self.partials[i + 1];
-                    reason.push(predicate!(a >= context.lower_bound(a)))
-                }
                 context.set_lower_bound(a_i, mandatory_consumption, reason)?
             }
         }
@@ -323,20 +316,25 @@ where
     }
 
     fn push_upper_bound_down(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
-        for (i, a_i) in self.partials.iter().enumerate().rev() {
+        for (i, a_i) in self.partials[1..self.partials.len()].iter().enumerate().rev() {
+            // note that due to enumerate this is off by -2 instead of -1
+            if i >= self.partials.len() - 2 {
+                continue;
+            }
+
             let l_start = min((i + 1) * self.m, self.x.len());
             let l_end = min(l_start + self.m, self.x.len());
+            let a_next = &self.partials[i+2];
 
-            let remaining_capacity = if i < self.partials.len() - 1 {context.upper_bound(&self.partials[i + 1])} else {self.c}
+            let remaining_capacity = context.upper_bound(a_next)
                 - self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>();
 
             if remaining_capacity < context.upper_bound(a_i) {
-                let mut reason: PropositionalConjunction = (l_start..l_end).map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j]))).collect();
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_next <= context.upper_bound(a_next))))
+                    .collect();
 
-                if i < self.partials.len() - 1 {
-                    let a = &self.partials[i + 1];
-                    reason.push(predicate!(a <= context.upper_bound(a)))
-                }
                 context.set_upper_bound(a_i, remaining_capacity, reason)?
             }
         }
