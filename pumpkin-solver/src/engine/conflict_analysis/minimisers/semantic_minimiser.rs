@@ -109,6 +109,7 @@ impl SemanticMinimiser {
         while (self.domains.len() as u32) < assignments.num_domains() {
             let domain_id = DomainId {
                 id: self.domains.len() as u32,
+                decidable: true, 
             };
             let lower_bound = assignments.get_initial_lower_bound(domain_id);
             let upper_bound = assignments.get_initial_upper_bound(domain_id);

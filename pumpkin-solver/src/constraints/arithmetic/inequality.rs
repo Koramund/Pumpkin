@@ -53,14 +53,10 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
         solver: &mut Solver,
         tag: Option<NonZero<u32>>,
     ) -> Result<(), ConstraintOperationError> {
-        if self.terms.len() < 4 {
-            LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)
-        } else {
-            match solver.satisfaction_solver.internal_parameters.linear_inequality_type {
-                LinearInequalityType::Incremental => {LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)},
-                LinearInequalityType::Sequential => {LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, false).post(solver, tag)}
-                LinearInequalityType::Totalizer => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, false).post(solver, tag)},
-            }
+        match solver.satisfaction_solver.internal_parameters.linear_inequality_type {
+            LinearInequalityType::Incremental => {LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)},
+            LinearInequalityType::Sequential => {LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, false).post(solver, tag)}
+            LinearInequalityType::Totalizer => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, false).post(solver, tag)},
         }
     }
 
@@ -70,11 +66,11 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
         reification_literal: crate::variables::Literal,
         tag: Option<NonZero<u32>>,
     ) -> Result<(), ConstraintOperationError> {
-        LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).implied_by(
-            solver,
-            reification_literal,
-            tag,
-        )
+        match solver.satisfaction_solver.internal_parameters.linear_inequality_type {
+            LinearInequalityType::Incremental => {LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).implied_by(solver, reification_literal, tag,)},
+            LinearInequalityType::Sequential => {LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, false).implied_by(solver, reification_literal, tag,)}
+            LinearInequalityType::Totalizer => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, false).implied_by(solver, reification_literal, tag,)},
+        }
     }
 }
 

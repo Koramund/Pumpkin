@@ -109,6 +109,7 @@ impl Assignments {
 
         let id = DomainId {
             id: self.num_domains(),
+            decidable: true,
         };
 
         self.trail.push(ConstraintProgrammingTrailEntry {
@@ -136,6 +137,53 @@ impl Assignments {
 
         id
     }
+
+    // registers the domain of a new integer variable
+    // note that this is an internal method that does _not_ allocate additional information
+    // necessary for the solver apart from the domain when creating a new integer variable, use
+    // create_new_domain_id in the ConstraintSatisfactionSolver
+    pub(crate) fn grow_undecidable(&mut self, lower_bound: i32, upper_bound: i32) -> DomainId {
+        // This is necessary for the metric that maintains relative domain size. It is only updated
+        // when values are removed at levels beyond the root, and then it becomes a tricky value to
+        // update when a fresh domain needs to be considered.
+        pumpkin_assert_simple!(
+            self.get_decision_level() == 0,
+            "can only create variables at the root"
+        );
+
+        let id = DomainId {
+            id: self.num_domains(),
+            decidable: false,
+        };
+
+        self.trail.push(ConstraintProgrammingTrailEntry {
+            predicate: predicate!(id >= lower_bound),
+            old_lower_bound: lower_bound,
+            old_upper_bound: upper_bound,
+            reason: None,
+        });
+        self.trail.push(ConstraintProgrammingTrailEntry {
+            predicate: predicate!(id <= upper_bound),
+            old_lower_bound: lower_bound,
+            old_upper_bound: upper_bound,
+            reason: None,
+        });
+
+        let _ = self.domains.push(IntegerDomain::new(
+            lower_bound,
+            upper_bound,
+            id,
+            self.trail.len() - 1,
+        ));
+
+        self.events.grow();
+        self.backtrack_events.grow();
+
+        id
+    }
+    
+    
+    
     pub fn create_new_integer_variable_sparse(&mut self, mut values: Vec<i32>) -> DomainId {
         assert!(
             !values.is_empty(),
@@ -399,6 +447,7 @@ impl Assignments {
         for domain in self.domains.iter().enumerate() {
             let domain_id = DomainId {
                 id: domain.0 as u32,
+                decidable: true,
             };
             descriptions.append(&mut self.get_domain_description(domain_id));
         }

@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn macro_local_identifiers_are_matched() {
-        let x = DomainId { id: 0 };
+        let x = DomainId { id: 0, decidable: true };
 
         let lower_bound_predicate = Predicate::LowerBound {
             domain_id: x,
@@ -163,7 +163,7 @@ mod tests {
         }
 
         let wrapper = Wrapper {
-            x: DomainId { id: 0 },
+            x: DomainId { id: 0, decidable: true },
         };
 
         let lower_bound_predicate = Predicate::LowerBound {
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn macro_index_expressions_are_matched() {
-        let wrapper = [DomainId { id: 0 }];
+        let wrapper = [DomainId { id: 0, decidable: true }];
 
         let lower_bound_predicate = Predicate::LowerBound {
             domain_id: wrapper[0],

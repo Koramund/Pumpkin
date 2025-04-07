@@ -100,7 +100,7 @@ impl PropagatorInitialisationContext<'_> {
         //     "Variables cannot be created in an inconsistent state"
         // );
 
-        let domain_id = self.assignments.grow(lower_bound, upper_bound);
+        let domain_id = self.assignments.grow_undecidable(lower_bound, upper_bound);
         self.watch_list.grow();
         domain_id
     }

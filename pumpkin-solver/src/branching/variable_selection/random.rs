@@ -15,7 +15,7 @@ impl RandomSelector {
     pub fn new(variables: impl IntoIterator<Item = DomainId>) -> Self {
         // Note the -1 due to the fact that the indices of the domain ids start at 1
         Self {
-            variables: SparseSet::new(variables.into_iter().collect(), |element| {
+            variables: SparseSet::new(variables.into_iter().filter(|x| x.decidable).collect(), |element| {
                 element.index() - 1
             }),
         }
