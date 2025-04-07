@@ -19,6 +19,7 @@ use std::cmp::min;
 pub(crate) struct LinearLessOrEqualPropagatorSequential<Var> {
     x: Box<[Var]>,
     c: i32,
+    equality: bool,
 
     // Represents the partial sums.
     partials: Box<[DomainId]>,
@@ -31,10 +32,11 @@ impl<Var> LinearLessOrEqualPropagatorSequential<Var>
 where
     Var: IntegerVariable,
 {
-    pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle, m: usize) -> Self {
+    pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle, m: usize, equality: bool) -> Self {
         LinearLessOrEqualPropagatorSequential::<Var> {
             x,
             c,
+            equality,
             partials: Box::new([]),
             m,
             shuffle_strategy,
@@ -109,9 +111,18 @@ where
                 self.x.iter().map(|x_i| predicate!(x_i >= context.lower_bound(x_i))).collect(),
             ))
         }
-        
-        partial_lowers.push(lower_bound_left_hand_side);
         partial_uppers.push(self.c);
+        
+        if self.equality {
+            if upper_bound_left_hand_side < self.c {
+                return Err(PropositionalConjunction::new(
+                    self.x.iter().map(|x_i| predicate!(x_i <= context.upper_bound(x_i))).collect(),
+                ))
+            }
+            partial_lowers.push(self.c);
+        } else {
+            partial_lowers.push(lower_bound_left_hand_side);
+        }
 
         self.partials = partial_lowers.iter().zip(partial_uppers.iter()).map(|(&lower, &upper)| {
             context.create_new_integer_variable(lower, upper)
@@ -359,7 +370,7 @@ mod tests {
         let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorSequential::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorSequential::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 2, false))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -387,7 +398,7 @@ mod tests {
         let y = solver.new_variable(0, 10);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorSequential::new([x, y].into(), 7, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorSequential::new([x, y].into(), 7, Shuffle::None, 2, false))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -405,7 +416,7 @@ mod tests {
         let y = solver.new_variable(1, 1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagatorSequential::new([x, y].into(), i32::MAX, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorSequential::new([x, y].into(), i32::MAX, Shuffle::None, 2, false))
             .expect_err("Expected overflow to be detected");
     }
 
@@ -417,7 +428,7 @@ mod tests {
         let y = solver.new_variable(-1, -1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagatorSequential::new([x, y].into(), i32::MIN, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorSequential::new([x, y].into(), i32::MIN, Shuffle::None, 2, false))
             .expect("Expected no error to be detected");
     }
 }

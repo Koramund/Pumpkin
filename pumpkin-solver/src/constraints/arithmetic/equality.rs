@@ -8,6 +8,8 @@ use crate::variables::Literal;
 use crate::ConstraintOperationError;
 use crate::Solver;
 use std::num::NonZero;
+use crate::basic_types::linear_options::LinearInequalityType;
+use crate::propagators::linear_less_or_equal_sequential::LinearLessOrEqualPropagatorSequential;
 
 /// Creates the [`NegatableConstraint`] `\sum terms_i = rhs`.
 ///
@@ -68,12 +70,12 @@ where
     ) -> Result<(), ConstraintOperationError> {
         
         if solver.satisfaction_solver.internal_parameters.proper_equality && self.terms.len() >= 4 {
-            LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)
-            // match solver.satisfaction_solver.internal_parameters.linear_inequality_type {
-            //     LinearInequalityType::Incremental => {LinearLessOrEqualPropagatorDefault::new(self.terms, self.rhs).post(solver, tag)},
-            //     LinearInequalityType::Sequential => {LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size).post(solver, tag)}
-            //     LinearInequalityType::Totalizer => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size).post(solver, tag)},
-            // }
+            // LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)
+            match solver.satisfaction_solver.internal_parameters.linear_inequality_type {
+                LinearInequalityType::Incremental => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)},
+                LinearInequalityType::Sequential => {LinearLessOrEqualPropagatorSequential::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)}
+                LinearInequalityType::Totalizer => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)},
+            }
         } else {
             less_than_or_equals(self.terms.clone(), self.rhs).post(solver, tag)?;
 
