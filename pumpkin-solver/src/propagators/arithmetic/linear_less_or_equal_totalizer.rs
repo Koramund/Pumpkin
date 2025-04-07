@@ -56,10 +56,10 @@ where
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
 
-        self.push_upper_bound_down(&mut context)?;
-        self.push_lower_bound_down(&mut context)?;
         self.push_lower_bound_up(&mut context)?;
         self.push_upper_bound_up(&mut context)?;
+        self.push_upper_bound_down(&mut context)?;
+        self.push_lower_bound_down(&mut context)?;
         
         Ok(())
     }

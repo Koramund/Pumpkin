@@ -2,7 +2,6 @@ use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
-use crate::engine::propagation::contexts::StatefulPropagationContext;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::propagation::{LocalId, PropagationContextMut};
@@ -57,15 +56,16 @@ where
         &self,
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
-
-        self.push_lower_bound_up(&mut context)?;
-        self.push_upper_bound_up(&mut context)?;
-        self.push_lower_bound_down(&mut context)?;
-        self.push_upper_bound_down(&mut context)?;
-
+        
         self.update_x_lower_bound(&mut context)?;
         self.update_x_upper_bound(&mut context)?;
-
+        
+        self.push_lower_bound_up(&mut context)?;
+        self.push_upper_bound_up(&mut context)?;
+        
+        self.push_lower_bound_down(&mut context)?;
+        self.push_upper_bound_down(&mut context)?;
+        
         Ok(())
     }
 
@@ -134,33 +134,6 @@ where
         });
 
         Ok(())
-    }
-
-    fn detect_inconsistency(
-        &self,
-        context: StatefulPropagationContext,
-    ) -> Option<PropositionalConjunction> {
-
-        let start = self.x.len() - (((self.x.len() - 1) % self.m) + 1);
-        let end = self.x.len();
-
-        let lb: i32 = self.x[start..end]
-            .iter()
-            .map(|var| context.lower_bound(var))
-            .sum::<i32>() + if self.partials.len() > 0 {context.lower_bound(&self.partials[self.partials.len()-1])} else {0};
-
-        if lb > self.c {
-            let mut reason: PropositionalConjunction = self.x[start..end]
-                .iter()
-                .map(|var| predicate![var >= context.lower_bound(var)])
-                .collect();
-            if self.partials.len() > 0 {
-                reason.add(predicate!(self.partials[self.partials.len()-1] >= context.lower_bound(&self.partials[self.partials.len()-1])));
-            }
-            Some(reason)
-        } else {
-            None
-        }
     }
 }
 
