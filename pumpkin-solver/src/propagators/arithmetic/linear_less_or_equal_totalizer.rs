@@ -18,6 +18,7 @@ use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 pub(crate) struct LinearLessOrEqualPropagatorTotalizer<Var> {
     x: Box<[Var]>,
     c: i32,
+    equality: bool,
 
     // Represents the partial sums.
     partials: Box<[Option<DomainId>]>,
@@ -30,10 +31,11 @@ impl<Var> LinearLessOrEqualPropagatorTotalizer<Var>
 where
     Var: IntegerVariable,
 {
-    pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle, b: usize) -> Self {
+    pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle, b: usize, equality: bool) -> Self {
         LinearLessOrEqualPropagatorTotalizer::<Var> {
             x,
             c,
+            equality,
             partials: Box::new([]),
             b,
             shuffle_strategy,
@@ -88,7 +90,7 @@ where
                 continue;
             }
             
-            let lb: i32 = self.children(i).filter_map(|j| self.get_lower_init(context, j)).sum();
+            let mut lb: i32 = self.children(i).filter_map(|j| self.get_lower_init(context, j)).sum();
             let mut ub: i32 = self.children(i).filter_map(|j| self.get_upper_init(context, j)).sum();
             
             if i == 0 {
@@ -96,6 +98,14 @@ where
                     return Err(PropositionalConjunction::from(self.children(i).filter_map(|j| self.get_pred_lower_init(context, j)).collect_vec()));
                 }
                 ub = self.c;
+
+                // small extension to generalize to equalities.
+                if self.equality {
+                    if self.c > ub {
+                        return Err(PropositionalConjunction::from(self.children(i).filter_map(|j| self.get_pred_upper_init(context, j)).collect_vec()));
+                    }
+                    lb = self.c
+                }
             }
 
             pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
@@ -263,6 +273,19 @@ where
         }
     }
 
+    /// Returns a lower bound predicate for the variable at index i.
+    fn get_pred_upper_init(&self, context: &PropagatorInitialisationContext, index: usize) -> Option<Predicate> {
+        if !self.node_exists(index) {
+            return None;
+        }
+        if index >= self.partials.len() {
+            Some(predicate!(self.x[index - self.partials.len()] <= context.upper_bound(&self.x[index - self.partials.len()])))
+        } else {
+            let node = self.partials[index].unwrap();
+            Some(predicate!(node <= context.upper_bound(&node)))
+        }
+    }
+
     /// Returns the range of child indices for the parent at index.
     fn children(&self, index: usize) -> Range<usize> {
         (index*self.b + 1)..(index*self.b + self.b + 1)
@@ -405,7 +428,7 @@ mod tests {
         let p = solver.new_variable(1, 5);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 3))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([z,z1, x2, x, y, p].into(), 12, Shuffle::None, 3, false))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -437,7 +460,7 @@ mod tests {
         let y = solver.new_variable(0, 10);
 
         let propagator = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), 7, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), 7, Shuffle::None, 2, false))
             .expect("no empty domains");
 
         solver.propagate(propagator).expect("non-empty domain");
@@ -455,7 +478,7 @@ mod tests {
         let y = solver.new_variable(1, 1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MAX, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MAX, Shuffle::None, 2, false))
             .expect_err("Expected overflow to be detected");
     }
 
@@ -467,7 +490,7 @@ mod tests {
         let y = solver.new_variable(-1, -1);
 
         let _ = solver
-            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MIN, Shuffle::None, 2))
+            .new_propagator(LinearLessOrEqualPropagatorTotalizer::new([x, y].into(), i32::MIN, Shuffle::None, 2, false))
             .expect("Expected no error to be detected");
     }
 }
