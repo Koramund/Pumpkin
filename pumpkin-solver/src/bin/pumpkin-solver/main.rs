@@ -364,6 +364,10 @@ struct Args {
     /// The group size by which to aggregate the linear extended resolution.
     #[arg(long = "linear-group-size", default_value_t = 2)]
     linear_group_size: usize,
+    
+    /// Wether or not we use a dedicated equality channel.
+    #[arg(long = "proper-equality", default_value_t = false)]
+    proper_equality: bool,
 }
 
 fn configure_logging(
@@ -540,6 +544,7 @@ fn run() -> PumpkinResult<()> {
         linear_inequality_type: args.linear_inequality_type,
         linear_ordering: args.linear_ordering,
         linear_group_size: args.linear_group_size,
+        proper_equality: args.proper_equality,
     };
 
     let time_limit = args.time_limit.map(Duration::from_millis);

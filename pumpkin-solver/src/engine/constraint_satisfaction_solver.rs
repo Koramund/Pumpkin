@@ -212,6 +212,8 @@ pub struct SatisfactionSolverOptions {
     pub linear_ordering: Shuffle,
     /// If utilizing extended resolution this symbolizes the group size underneath each partial,
     pub linear_group_size: usize,
+    /// If utilizing dedicated linear inequalities.
+    pub proper_equality: bool,
 }
 
 impl Default for SatisfactionSolverOptions {
@@ -226,6 +228,7 @@ impl Default for SatisfactionSolverOptions {
             linear_inequality_type: LinearInequalityType::default(),
             linear_ordering: Shuffle::default(),
             linear_group_size: 2,
+            proper_equality: false,
         }
     }
 }
