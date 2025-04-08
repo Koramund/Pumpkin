@@ -124,11 +124,21 @@ impl<WrappedPropagator: Propagator> Propagator for ReifiedPropagator<WrappedProp
         if context.is_literal_true(&self.reification_literal) {
             context.with_reification(self.reification_literal);
 
-            let result = self.propagator.propagate(context);
-
-            self.map_propagation_status(result)?;
+            if !context.is_literal_fixed(&self.reification_literal) {
+                let result = self.propagator.propagate(context);
+                if let Err(Inconsistency::Conflict(conflict_nogood)) = result {
+                    // Due to the loss of access to context beyond this point we cannot set it immediately so we await the next call to propagate.
+                    // This introduces the risk of an immediate inconsistency error meaning propagate is not triggered again as no propagation occurred.
+                    // And the solver assumes we are at fixpoint.
+                    self.inconsistency = Some(conflict_nogood);
+                } else {
+                    self.map_propagation_status(result)?
+                }
+            } else {
+                let result = self.propagator.propagate(context);
+                self.map_propagation_status(result)?;
+            }
         }
-
         Ok(())
     }
 

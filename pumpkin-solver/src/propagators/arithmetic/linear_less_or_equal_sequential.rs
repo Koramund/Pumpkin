@@ -2,16 +2,17 @@ use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
-use crate::engine::propagation::Propagator;
+use crate::engine::propagation::{EnqueueDecision, PropagationContext, Propagator};
 use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
-use crate::engine::DomainEvents;
-use crate::predicate;
+use crate::engine::{DomainEvents, IntDomainEvent, TrailedInt};
+use crate::{predicate, pumpkin_assert_simple};
 use crate::variables::DomainId;
 use itertools::Itertools;
 use std::cmp::min;
-
+use crate::engine::opaque_domain_event::OpaqueDomainEvent;
+use crate::engine::propagation::contexts::{ManipulateStatefulIntegers, StatefulPropagationContext};
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -25,6 +26,11 @@ pub(crate) struct LinearLessOrEqualPropagatorSequential<Var> {
     m: usize,
 
     shuffle_strategy: Shuffle,
+
+    /// The lower bound of the sum of the left-hand side. This is incremental state.
+    lower_bound_left_hand_side: TrailedInt,
+    /// The value at index `i` is the bound for `x[i]`.
+    current_bounds: Box<[TrailedInt]>,
 }
 
 impl<Var> LinearLessOrEqualPropagatorSequential<Var>
@@ -32,6 +38,11 @@ where
     Var: IntegerVariable,
 {
     pub(crate) fn new(x: Box<[Var]>, c: i32, shuffle_strategy: Shuffle, m: usize, equality: bool) -> Self {
+        let current_bounds = (0..x.len())
+            .map(|_| TrailedInt::default())
+            .collect_vec()
+            .into();
+        
         LinearLessOrEqualPropagatorSequential::<Var> {
             x,
             c,
@@ -39,7 +50,16 @@ where
             partials: Box::new([]),
             m,
             shuffle_strategy,
+            lower_bound_left_hand_side: TrailedInt::default(),
+            current_bounds,
         }
+    }
+
+    fn create_conflict_reason(&self, context: PropagationContext) -> PropositionalConjunction {
+        self.x
+            .iter()
+            .map(|var| predicate![var >= context.lower_bound(var)])
+            .collect()
     }
 }
 
@@ -93,6 +113,7 @@ where
                 DomainEvents::BOUNDS,
                 LocalId::from(i as u32),
             );
+            self.current_bounds[i] = context.new_stateful_integer(context.lower_bound(x_i) as i64);
 
             // saves the lower bound for the next partial.
             if (i % self.m) == 0 {
@@ -104,6 +125,7 @@ where
             lower_bound_left_hand_side += context.lower_bound(x_i);
             upper_bound_left_hand_side += context.upper_bound(x_i);
         });
+        self.lower_bound_left_hand_side = context.new_stateful_integer(lower_bound_left_hand_side as i64);
 
         // Error out if the propagator is unfeasible at root.
         if lower_bound_left_hand_side > self.c {
@@ -134,6 +156,50 @@ where
         });
 
         Ok(())
+    }
+
+    fn detect_inconsistency(
+        &self,
+        context: StatefulPropagationContext,
+    ) -> Option<PropositionalConjunction> {
+        if (self.c as i64) < context.value(self.lower_bound_left_hand_side) {
+            Some(self.create_conflict_reason(context.as_readonly()))
+        } else {
+            None
+        }
+    }
+
+    fn notify(
+        &mut self,
+        mut context: StatefulPropagationContext,
+        local_id: LocalId,
+        event: OpaqueDomainEvent,
+    ) -> EnqueueDecision {
+        let index = local_id.unpack() as usize;
+        
+        if index >= self.x.len() {
+            return EnqueueDecision::Enqueue
+        }
+        
+        match event.unwrap() {
+            IntDomainEvent::LowerBound => {
+                let x_i = &self.x[index];
+
+                let old_bound = context.value(self.current_bounds[index]);
+                let new_bound = context.lower_bound(x_i) as i64;
+                
+                if old_bound != new_bound {
+                    pumpkin_assert_simple!(
+                        old_bound < new_bound,
+                        "propagator should only be triggered when lower bounds are tightened, old_bound={old_bound}, new_bound={new_bound}"
+                    );
+                    context.add_assign(self.lower_bound_left_hand_side, new_bound - old_bound);
+                    context.assign(self.current_bounds[index], new_bound);
+                }
+                EnqueueDecision::Enqueue
+            }
+            _ => {EnqueueDecision::Enqueue}
+        }
     }
 }
 
