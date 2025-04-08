@@ -1,5 +1,5 @@
 use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
-use crate::basic_types::PropagationStatusCP;
+use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::propagation::Propagator;
@@ -160,6 +160,17 @@ where
                 + context.lower_bound(x_i)
                 - context.lower_bound(a_prev);
             
+            // detect inconsistencies earlier.
+            if context.lower_bound(x_i) > new_ub {
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_prev >= context.lower_bound(a_prev))))
+                    .chain(std::iter::once(predicate!(a_next <= context.upper_bound(a_next))))
+                    .collect();
+            
+                return Err(Inconsistency::from(reason))
+            }
+
             // if the previous capacity of x_i is larger, then we want to lower bound it.
             if context.upper_bound(x_i) > new_ub {
 
@@ -204,6 +215,16 @@ where
                 - context.upper_bound(a_prev);
 
             // if the previous capacity of x_i is larger, then we want to lower bound it.
+            if context.upper_bound(x_i) < mandatory_consumpotion {
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_prev <= context.upper_bound(a_prev))))
+                    .chain(std::iter::once(predicate!(a_next >= context.lower_bound(a_next))))
+                    .collect();
+            
+                return Err(Inconsistency::from(reason))
+            }
+
             if context.lower_bound(x_i) < mandatory_consumpotion {
 
                 // get lower bounds of neighbours
@@ -236,6 +257,16 @@ where
             let total_lb = self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>()
                 + context.lower_bound(a_prev);
 
+            if total_lb > context.upper_bound(a_i) {
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_prev >= context.lower_bound(a_prev))))
+                    .chain(std::iter::once(predicate!(a_i <= context.upper_bound(a_i))))
+                    .collect();
+            
+                return Err(Inconsistency::from(reason))
+            }
+
             if total_lb > context.lower_bound(a_i) {
                 let reason: PropositionalConjunction = (l_start..l_end)
                     .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
@@ -260,6 +291,16 @@ where
             let total_ub = self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>()
                 + context.upper_bound(a_prev);
 
+            if total_ub < context.lower_bound(a_i) {
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_prev <= context.upper_bound(a_prev))))
+                    .chain(std::iter::once(predicate!(a_i >= context.lower_bound(a_i))))
+                    .collect();
+            
+                return Err(Inconsistency::from(reason))
+            }
+            
             if total_ub < context.upper_bound(a_i) {
                 let reason: PropositionalConjunction = (l_start..l_end)
                     .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
@@ -287,6 +328,16 @@ where
             let mandatory_consumption = context.lower_bound(a_next)
                 - self.x[l_start..l_end].iter().map(|x_j| { context.upper_bound(x_j) }).sum::<i32>();
 
+            if mandatory_consumption > context.upper_bound(a_i) {
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_next >= context.lower_bound(a_next))))
+                    .chain(std::iter::once(predicate!(a_i <= context.upper_bound(a_i))))
+                    .collect();
+            
+                return Err(Inconsistency::from(reason))
+            }
+            
             if mandatory_consumption > context.lower_bound(a_i) {
                 let reason: PropositionalConjunction = (l_start..l_end)
                     .map(|j| predicate!(self.x[j] <= context.upper_bound(&self.x[j])))
@@ -313,6 +364,16 @@ where
             let remaining_capacity = context.upper_bound(a_next)
                 - self.x[l_start..l_end].iter().map(|x_j| { context.lower_bound(x_j) }).sum::<i32>();
 
+            if remaining_capacity < context.lower_bound(a_i) {
+                let reason: PropositionalConjunction = (l_start..l_end)
+                    .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
+                    .chain(std::iter::once(predicate!(a_next <= context.upper_bound(a_next))))
+                    .chain(std::iter::once(predicate!(a_i >= context.lower_bound(a_i))))
+                    .collect();
+
+                return Err(Inconsistency::from(reason))
+            }
+            
             if remaining_capacity < context.upper_bound(a_i) {
                 let reason: PropositionalConjunction = (l_start..l_end)
                     .map(|j| predicate!(self.x[j] >= context.lower_bound(&self.x[j])))
