@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use enumset::EnumSet;
 
 use super::TransformableVariable;
@@ -13,7 +14,7 @@ use crate::engine::Watchers;
 
 /// A structure which represents the most basic [`IntegerVariable`]; it is simply the id which links
 /// to a domain (hence the name).
-#[derive(Clone, PartialEq, Eq, Copy, Hash)]
+#[derive(Clone, Copy)]
 pub struct DomainId {
     pub id: u32,
     pub decidable: bool,
@@ -24,6 +25,20 @@ impl DomainId {
         DomainId { id, decidable: true }
     }
     pub fn new_hidden(id: u32, decidable: bool) -> Self { DomainId { id, decidable } }
+}
+
+impl Eq for DomainId {}
+
+impl PartialEq for DomainId {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id  // custom equality: only compare `id`
+    }
+}
+
+impl Hash for DomainId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);  // don't hash `decidable` since it's not part of equality
+    }
 }
 
 impl IntegerVariable for DomainId {
