@@ -45,6 +45,9 @@ impl SemanticMinimiser {
         self.clean_up();
         self.apply_predicates(nogood);
 
+        // let lock = yeet.lock();
+        // drop(lock);
+        
         // Compile the nogood based on the internal state.
         // Add domain description to the helper.
         for domain_id in self.present_ids.iter() {

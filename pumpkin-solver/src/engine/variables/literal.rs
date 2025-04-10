@@ -59,8 +59,15 @@ impl Not for Literal {
 
 impl IntegerVariable for Literal {
     fn get_scale(&self) -> i32 {
-        1
+        self.integer_variable.get_scale()
     }
+    
+    fn get_offset(&self) -> i32 {self.integer_variable.get_offset()}
+
+    fn get_id(&self) -> u32 { self.integer_variable.get_id() }
+
+    fn get_domain_id(&self) -> DomainId { self.integer_variable.get_domain_id() }
+    
     type AffineView = AffineView<Self>;
 
     /// Returns the lower bound represented as a 0-1 value.
