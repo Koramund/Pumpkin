@@ -55,9 +55,16 @@ where
 {
     type AffineView = Self;
 
+    // TODO, but is it possible that Inner is some AffineView And therefore the scale and offset are wrong.
     fn get_scale(&self) -> i32 {
         self.scale
     }
+
+    fn get_offset(&self) -> i32 { self.offset }
+    
+    fn get_id(&self) -> u32 { self.inner.get_id() }
+
+    fn get_domain_id(&self) -> DomainId { self.inner.get_domain_id() }
 
     fn lower_bound(&self, assignment: &Assignments) -> i32 {
         if self.scale < 0 {
