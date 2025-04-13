@@ -454,6 +454,7 @@ impl ResolutionResolver {
         // TODO: Do not sort but do a linear scan to find the correct placement of the predicates
         clean_nogood.sort_by_key(|p| context.assignments.get_trail_position(p).unwrap());
         clean_nogood.reverse();
+        dbg!(&clean_nogood);
         // The second highest decision level predicate is at position one.
         // This is the backjump level.
         let backjump_level = if clean_nogood.len() > 1 {

@@ -172,6 +172,8 @@ where
         if self.equality && self.c > context.upper_bound(&root) {
             return Err(PropositionalConjunction::from(predicate!(root <= self.c)));
         }
+        dbg!(&self.x.iter().map(|x| x.get_domain_id()).collect_vec(), &self.partials);
+        
         Ok(())
     }
 }
