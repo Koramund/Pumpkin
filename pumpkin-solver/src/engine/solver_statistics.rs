@@ -44,4 +44,14 @@ create_statistics_struct!(
         average_backtrack_amount: CumulativeMovingAverage<u64>,
         /// The average literal-block distance (LBD) metric for newly added learned nogoods
         average_lbd: CumulativeMovingAverage<u64>,
+        /// The number of clauses which contain overlap
+        chance_contains_overlap: CumulativeMovingAverage<u64>,
+        
+        propagated_on_learned_clause: u64,
+        propagated_with_duplicate: CumulativeMovingAverage<u64>,
+        
+        total_predicates: u64,
+        overlapping_predicates: u64,
+        /// The recorded percentage of overlap for each clause
+        average_overlap: CumulativeMovingAverage<f64>,
 });
