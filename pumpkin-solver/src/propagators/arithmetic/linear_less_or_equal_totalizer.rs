@@ -173,10 +173,10 @@ where
         let root = self.partials[0].unwrap();
         
         if self.c < context.lower_bound(&root) {
-            return Err(PropositionalConjunction::from(predicate!(root >= self.c)));
+            return Err(PropositionalConjunction::from(predicate!(root >= self.c+1)));
         }
         if self.equality && self.c > context.upper_bound(&root) {
-            return Err(PropositionalConjunction::from(predicate!(root <= self.c)));
+            return Err(PropositionalConjunction::from(predicate!(root <= self.c-1)));
         }
 
         // dbg!(&self.x.iter().map(|x| x.get_domain_id()).collect_vec(), &self.partials);
@@ -185,7 +185,7 @@ where
     }
 }
 
-fn get_scale_offset_shared(key: &Vec<(i32, i32, u32)>) -> Option<(i32, i32)> {
+pub fn get_scale_offset_shared(key: &Vec<(i32, i32, u32)>) -> Option<(i32, i32)> {
     if key.is_empty() {
         return None;
     }
@@ -410,11 +410,11 @@ where
         let root = &self.partials[0].unwrap();
         // Supplying empty reasons should make these roots? Also this just updates the roots accordingly.
         if context.upper_bound(root) > self.c {
-            context.set_upper_bound(&self.partials[0].unwrap(), self.c, PropositionalConjunction::default())?;
+            context.set_upper_bound(root, self.c, PropositionalConjunction::default())?;
         }
         
         if self.equality && context.lower_bound(root) < self.c {
-            context.set_lower_bound(&self.partials[0].unwrap(), self.c, PropositionalConjunction::default())?;
+            context.set_lower_bound(root, self.c, PropositionalConjunction::default())?;
         }
         
         Ok(())

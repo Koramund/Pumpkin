@@ -2,16 +2,17 @@ use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
-use crate::engine::propagation::Propagator;
+use crate::engine::propagation::{PropagationContext, Propagator};
 use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
 use crate::engine::DomainEvents;
 use crate::predicate;
-use crate::variables::DomainId;
+use crate::variables::{AffineView, DomainId, TransformableVariable};
 use itertools::Itertools;
 use std::cmp::min;
-
+use crate::constraints::{DECOMPOSED, PARTIAL_ENCODINGS};
+use crate::propagators::linear_less_or_equal_totalizer::get_scale_offset_shared;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -21,7 +22,7 @@ pub(crate) struct LinearLessOrEqualPropagatorSequential<Var> {
     equality: bool,
 
     // Represents the partial sums.
-    partials: Box<[DomainId]>,
+    partials: Box<[AffineView<DomainId>]>,
     m: usize,
 
     shuffle_strategy: Shuffle,
@@ -57,6 +58,8 @@ where
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
         
+        self.initial_constraint(&mut context)?;
+        
         self.update_x_lower_bound(&mut context)?;
         self.update_x_upper_bound(&mut context)?;
         
@@ -75,63 +78,99 @@ where
 
     // This function needs to be altered to create a series of variables a_i
     fn initialise_at_root(&mut self, context: &mut PropagatorInitialisationContext, ) -> Result<(), PropositionalConjunction> {
-        let mut lower_bound_left_hand_side = 0_i32;
-        let mut upper_bound_left_hand_side = 0_i32;
-        let mut partial_lowers: Vec<i32> = Vec::new();
-        let mut partial_uppers: Vec<i32> = Vec::new();
+       
+        let mut partials: Vec<AffineView<DomainId>> = Vec::new();
 
         match self.shuffle_strategy {
             Shuffle::None => {}
             Shuffle::Scalar => {self.x = proxy_sort(&self.x, &self.x.iter().map(|x| x.get_scale()).collect_vec().into_boxed_slice())}
             Shuffle::Random => {self.x = random_shuffle(&self.x, 42)}
         }
+        
+        let mut cache = PARTIAL_ENCODINGS.lock().unwrap();
+        let mut decomp = DECOMPOSED.lock().unwrap();
+        
+        // Note that this is an invalid key as id 0 belongs to the always true predicate, hence this propagator can never have added it to the map.
+        let dummy_key = vec![(-1, -1, 0)];
+        if !cache.contains_key(&dummy_key) {
+            cache.insert(dummy_key.clone(), context.create_new_integer_variable(0, 0).scaled(1));
+        }
+        partials.push(*cache.get(&dummy_key).unwrap());
+        
 
+        for (i, locality_cluster) in self.x.chunks(self.m).enumerate() {
+            
+            let cache_key = std::iter::once(partials[i].get_determining_props()).chain(
+                locality_cluster.iter().map(|x| x.get_determining_props())
+            ).collect_vec();
+            
+            
+            if cache.contains_key(cache_key.as_slice()) {
+                partials.push(*cache.get(cache_key.as_slice()).unwrap());
+                continue
+            }
+            
+            
+            let shared = get_scale_offset_shared(&cache_key);
+            if let Some((scale, offset)) = shared {
+                
+                let basic_key = std::iter::once((1, 0, partials[i].get_id())).chain(
+                    locality_cluster.iter().map(|x| (1, 0, x.get_id()))
+                ).collect_vec();
+
+                let prime_partial: AffineView<DomainId>;
+                if !cache.contains_key(basic_key.as_slice()) {
+                    let lb: i32 =  std::iter::once(context.lower_bound(&partials[i].get_domain_id())).chain(locality_cluster.iter().map(|x| context.lower_bound(&x.get_domain_id()))).sum();
+                    let ub: i32 =  std::iter::once(context.upper_bound(&partials[i].get_domain_id())).chain(locality_cluster.iter().map(|x| context.upper_bound(&x.get_domain_id()))).sum();
+                    prime_partial = context.create_new_integer_variable(lb, ub).scaled(1);
+                    cache.insert(basic_key, prime_partial);
+                    decomp.insert(prime_partial.get_id(), locality_cluster.iter().map(|x| x.get_id()).chain(std::iter::once(partials[i].get_id())).collect_vec());
+                    
+                } else {
+                    prime_partial = *cache.get(basic_key.as_slice()).unwrap();
+                }
+                let partial = prime_partial.scaled(scale).offset(offset);
+                cache.insert(cache_key, partial);
+                partials.push(partial);
+                
+                continue
+            }
+            
+            
+            // No values are in the cache so we built up by hand.
+            let lb: i32 =  std::iter::once(context.lower_bound(&partials[i])).chain(locality_cluster.iter().map(|x| context.lower_bound(x))).sum();
+            let ub: i32 =  std::iter::once(context.upper_bound(&partials[i])).chain(locality_cluster.iter().map(|x| context.upper_bound(x))).sum();
+            
+            let partial = context.create_new_integer_variable(lb, ub).scaled(1);
+
+            decomp.insert(partial.get_id(), locality_cluster.iter().map(|x| x.get_id()).chain(std::iter::once(partials[i].get_id())).collect_vec());
+            partials.push(partial);
+            cache.insert(cache_key, partial);
+        }
+        
         self.x.iter().enumerate().for_each(|(i, x_i)| {
-
             let _ = context.register(
                 x_i.clone(),
                 DomainEvents::BOUNDS,
                 LocalId::from(i as u32),
             );
-
-            // saves the lower bound for the next partial.
-            if (i % self.m) == 0 {
-                partial_lowers.push(lower_bound_left_hand_side);
-                partial_uppers.push(upper_bound_left_hand_side);
-            }
-
-            // updates lower bound according to the default variables
-            lower_bound_left_hand_side += context.lower_bound(x_i);
-            upper_bound_left_hand_side += context.upper_bound(x_i);
         });
+        
+        let root = partials.last().unwrap();
 
         // Error out if the propagator is unfeasible at root.
-        if lower_bound_left_hand_side > self.c {
-            return Err(PropositionalConjunction::new(
-                self.x.iter().map(|x_i| predicate!(x_i >= context.lower_bound(x_i))).collect(),
-            ))
+        if context.lower_bound(root) > self.c {
+            return Err(PropositionalConjunction::from(predicate!(root >= self.c+1)));
         }
-        partial_uppers.push(self.c);
+        if self.equality && context.upper_bound(root) < self.c {
+                return Err(PropositionalConjunction::from(predicate!(root <= self.c-1)));
+        }
         
-        if self.equality {
-            if upper_bound_left_hand_side < self.c {
-                return Err(PropositionalConjunction::new(
-                    self.x.iter().map(|x_i| predicate!(x_i <= context.upper_bound(x_i))).collect(),
-                ))
-            }
-            partial_lowers.push(self.c);
-        } else {
-            partial_lowers.push(lower_bound_left_hand_side);
-        }
-
-        self.partials = partial_lowers.iter().zip(partial_uppers.iter()).map(|(&lower, &upper)| {
-            context.create_new_integer_variable(lower, upper)
-        }).collect_vec()
-            .into();
-
-        self.partials.iter().enumerate().for_each(|(i, a_i)| {
+        partials.iter().enumerate().for_each(|(i, a_i)| {
             let _ = context.register(a_i.clone(), DomainEvents::BOUNDS, LocalId::from((i + self.x.len()) as u32));
         });
+        
+        self.partials = partials.iter().map(|x| *x).collect_vec().into();
 
         Ok(())
     }
@@ -141,6 +180,21 @@ impl<Var: 'static> LinearLessOrEqualPropagatorSequential<Var>
 where
     Var: IntegerVariable,
 {
+
+    fn initial_constraint(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        let root = self.partials.last().unwrap();
+        // Supplying empty reasons should make these roots? Also this just updates the roots accordingly.
+        if context.upper_bound(root) > self.c {
+            context.set_upper_bound(root, self.c, PropositionalConjunction::default())?;
+        }
+
+        if self.equality && context.lower_bound(root) < self.c {
+            context.set_lower_bound(root, self.c, PropositionalConjunction::default())?;
+        }
+
+        Ok(())
+    }
+    
     fn update_x_upper_bound(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         // Main loop to update the upper bound of every X based on its local capacity and consumption.
         for i_x in 0..self.x.len() {
