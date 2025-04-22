@@ -3,7 +3,7 @@ use std::fmt::Display;
 
 use num::cast::AsPrimitive;
 use num::traits::NumAssign;
-
+use crate::engine::propagation::contexts::ManipulateStatefulIntegers;
 use super::MovingAverage;
 
 #[derive(Default, Debug, Copy, Clone)]
