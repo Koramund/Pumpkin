@@ -46,9 +46,17 @@ create_statistics_struct!(
         average_lbd: CumulativeMovingAverage<u64>,
         /// The number of clauses which contain overlap
         chance_contains_overlap: CumulativeMovingAverage<u64>,
+        chance_contains_extended_resolution: CumulativeMovingAverage<u64>,
         
         propagated_on_learned_clause: u64,
+        
+        // These are overlapping
+        propagated_with_extended: CumulativeMovingAverage<u64>,
         propagated_with_duplicate: CumulativeMovingAverage<u64>,
+        
+        // These are also overlapping
+        average_extended_clause_size: CumulativeMovingAverage<u64>,
+        average_duplicate_clause_size: CumulativeMovingAverage<u64>,
         
         total_predicates: u64,
         overlapping_predicates: u64,
