@@ -12,6 +12,7 @@ use crate::engine::Assignments;
 use crate::engine::TrailedAssignments;
 use crate::engine::WatchListCP;
 use crate::engine::Watchers;
+use crate::variables::DomainId;
 
 /// [`PropagatorInitialisationContext`] is used when [`Propagator`]s are initialised after creation.
 ///
@@ -87,6 +88,21 @@ impl PropagatorInitialisationContext<'_> {
         var.watch_all(&mut watchers, domain_events.get_int_events());
 
         var
+    }
+    
+    pub(crate) fn create_new_integer_variable(
+        &mut self,
+        lower_bound: i32,
+        upper_bound: i32,
+    ) -> DomainId {
+        // assert!(
+        //     !self.state.is_inconsistent(),
+        //     "Variables cannot be created in an inconsistent state"
+        // );
+
+        let domain_id = self.assignments.grow(lower_bound, upper_bound);
+        self.watch_list.grow();
+        domain_id
     }
 
     /// Subscribes the propagator to the given [`DomainEvents`] when they are undone during

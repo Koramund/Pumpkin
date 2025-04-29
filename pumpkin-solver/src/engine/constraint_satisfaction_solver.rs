@@ -33,6 +33,7 @@ use crate::basic_types::Inconsistency;
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
 use crate::basic_types::Random;
+use crate::basic_types::linear_options::{LinearInequalityType, Shuffle};
 use crate::basic_types::SolutionReference;
 use crate::basic_types::StoredConflictInfo;
 use crate::branching::Brancher;
@@ -141,7 +142,7 @@ pub struct ConstraintSatisfactionSolver {
     /// A set of counters updated during the search.
     solver_statistics: SolverStatistics,
     /// Miscellaneous constant parameters used by the solver.
-    internal_parameters: SatisfactionSolverOptions,
+    pub(crate) internal_parameters: SatisfactionSolverOptions,
     /// The names of the variables in the solver.
     variable_names: VariableNames,
     /// Computes the LBD for nogoods.
@@ -205,6 +206,14 @@ pub struct SatisfactionSolverOptions {
     pub conflict_resolver: ConflictResolver,
     /// The options which influence the learning of the solver.
     pub learning_options: LearningOptions,
+    /// Specifies if linear inequalities should be solved via extended resolution
+    pub linear_inequality_type: LinearInequalityType,
+    /// The kind of ordering desired for linear Inequalities.
+    pub linear_ordering: Shuffle,
+    /// If utilizing extended resolution this symbolizes the group size underneath each partial,
+    pub linear_group_size: usize,
+    /// If utilizing dedicated linear inequalities.
+    pub proper_equality: bool,
 }
 
 impl Default for SatisfactionSolverOptions {
@@ -216,6 +225,10 @@ impl Default for SatisfactionSolverOptions {
             proof_log: ProofLog::default(),
             conflict_resolver: ConflictResolver::default(),
             learning_options: LearningOptions::default(),
+            linear_inequality_type: LinearInequalityType::default(),
+            linear_ordering: Shuffle::default(),
+            linear_group_size: 2,
+            proper_equality: false,
         }
     }
 }

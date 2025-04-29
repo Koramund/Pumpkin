@@ -26,6 +26,8 @@ use maxsat::PseudoBooleanEncoding;
 use parsers::dimacs::parse_cnf;
 use parsers::dimacs::SolverArgs;
 use parsers::dimacs::SolverDimacsSink;
+use pumpkin_solver::basic_types::linear_options::Shuffle;
+use pumpkin_solver::basic_types::linear_options::LinearInequalityType;
 use pumpkin_solver::optimisation::OptimisationStrategy;
 use pumpkin_solver::options::*;
 use pumpkin_solver::proof::Format;
@@ -350,6 +352,22 @@ struct Args {
     /// Determine what type of optimisation strategy is used by the solver
     #[arg(long = "optimisation-strategy", default_value_t)]
     optimisation_strategy: OptimisationStrategy,
+
+    /// Determine the ordering to be used by linear inequalities.
+    #[arg(long = "linear-inequality-type", value_enum, default_value_t = LinearInequalityType::Incremental)]
+    linear_inequality_type: LinearInequalityType,
+    
+    /// Determine the ordering to be used by linear inequalities.
+    #[arg(long = "linear-ordering", value_enum, default_value_t = Shuffle::None)]
+    linear_ordering: Shuffle,
+
+    /// The group size by which to aggregate the linear extended resolution.
+    #[arg(long = "linear-group-size", default_value_t = 2)]
+    linear_group_size: usize,
+    
+    /// Wether or not we use a dedicated equality channel.
+    #[arg(long = "proper-equality", default_value_t = false)]
+    proper_equality: bool,
 }
 
 fn configure_logging(
@@ -523,6 +541,10 @@ fn run() -> PumpkinResult<()> {
         proof_log,
         conflict_resolver: args.conflict_resolver,
         learning_options,
+        linear_inequality_type: args.linear_inequality_type,
+        linear_ordering: args.linear_ordering,
+        linear_group_size: args.linear_group_size,
+        proper_equality: args.proper_equality,
     };
 
     let time_limit = args.time_limit.map(Duration::from_millis);

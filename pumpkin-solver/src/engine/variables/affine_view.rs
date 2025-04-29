@@ -55,6 +55,10 @@ where
 {
     type AffineView = Self;
 
+    fn get_scale(&self) -> i32 {
+        self.scale
+    }
+
     fn lower_bound(&self, assignment: &Assignments) -> i32 {
         if self.scale < 0 {
             self.map(self.inner.upper_bound(assignment))
