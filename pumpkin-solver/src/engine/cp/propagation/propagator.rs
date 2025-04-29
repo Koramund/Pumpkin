@@ -38,6 +38,21 @@ impl_downcast!(Propagator);
 ///
 /// See the [`crate::engine::cp::propagation`] documentation for more details.
 pub(crate) trait Propagator: Downcast {
+
+    /// Initialises the propagator without performing propagation. This method is called only once
+    /// by the [`ConstraintSatisfactionSolver`] when the propagator is added using
+    /// [`ConstraintSatisfactionSolver::add_propagator`].
+    ///
+    /// The method can be used to detect root-level inconsistencies and to register variables used
+    /// for notifications (see [`Propagator::notify`]) by calling
+    /// [`PropagatorInitialisationContext::register`].
+    ///
+    /// The solver will call this before any call to [`Propagator::propagate`] is made.
+    fn initialise_at_root(
+        &mut self,
+        _: &mut PropagatorInitialisationContext,
+    ) -> Result<(), PropositionalConjunction>;
+    
     /// Return the name of the propagator, this is a convenience method that is used for printing.
     fn name(&self) -> &str;
 
@@ -135,20 +150,6 @@ pub(crate) trait Propagator: Downcast {
         // setting an arbitrary priority by default
         3
     }
-
-    /// Initialises the propagator without performing propagation. This method is called only once
-    /// by the [`ConstraintSatisfactionSolver`] when the propagator is added using
-    /// [`ConstraintSatisfactionSolver::add_propagator`].
-    ///
-    /// The method can be used to detect root-level inconsistencies and to register variables used
-    /// for notifications (see [`Propagator::notify`]) by calling
-    /// [`PropagatorInitialisationContext::register`].
-    ///
-    /// The solver will call this before any call to [`Propagator::propagate`] is made.
-    fn initialise_at_root(
-        &mut self,
-        _: &mut PropagatorInitialisationContext,
-    ) -> Result<(), PropositionalConjunction>;
 
     /// A check whether this propagator can detect an inconsistency.
     ///
