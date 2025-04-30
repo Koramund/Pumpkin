@@ -120,21 +120,23 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
                 
                 // The restricting variable was propagated on, see if we can replace it with a restrictor of equal value.
                 if index == context.value(*self.restricting_index) as usize {
-                    // TODO Get a sorted array somewhere to more easily find alternatives.
+                    // Realistically tho this is a size 10 array max. So acceleration datastructures are most likely not worth it.
                     let (index, restrictor) = self.array.iter().enumerate().min_by_key(|(_, x)| context.lower_bound(*x)).unwrap().clone();
-
-                    // A replacement exists so we move the restrictor around, but we skip enqueueing
-                    if context.lower_bound(restrictor) == context.value(*self.lower_bound_right_hand_side) as i32 {
-
-                        context.assign(*self.restricting_index, index as i64);
-                        EnqueueDecision::Skip
-                    } else {
-                        let old_bound = context.value(*self.lower_bound_right_hand_side).clone();
-                        let new_bound = context.lower_bound(restrictor) as i64;
-                        
+                    
+                    // Update the internal datastructures such that is always has the correct values set.
+                    // We might be able to skip out on this in certain scenarios.
+                    let old_bound = context.value(*self.lower_bound_right_hand_side).clone();
+                    let new_bound = context.lower_bound(restrictor) as i64;
+                    if old_bound != new_bound {
                         context.add_assign(*self.lower_bound_right_hand_side, new_bound - old_bound);
-                        context.assign(*self.restricting_index, index as i64);
+                    }
+                    context.assign(*self.restricting_index, index as i64);
+                    
+                    // Only enqueue if stuff has tightened.
+                    if context.lower_bound(restrictor) <= context.lower_bound(&self.lhs) {
                         EnqueueDecision::Enqueue
+                    } else {
+                        EnqueueDecision::Skip
                     }
                 } else {
                     EnqueueDecision::Skip
