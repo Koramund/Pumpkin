@@ -69,7 +69,7 @@ where
         tag: Option<NonZero<u32>>,
     ) -> Result<(), ConstraintOperationError> {
         
-        if solver.satisfaction_solver.internal_parameters.proper_equality && self.terms.len() >= 4 {
+        if self.terms.len() >= 4 {
             // LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)
             match solver.satisfaction_solver.internal_parameters.linear_inequality_type {
                 LinearInequalityType::Incremental => {LinearLessOrEqualPropagatorTotalizer::new(self.terms, self.rhs, solver.satisfaction_solver.internal_parameters.linear_ordering.clone(), solver.satisfaction_solver.internal_parameters.linear_group_size, true).post(solver, tag)},
