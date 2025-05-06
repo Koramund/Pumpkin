@@ -128,16 +128,16 @@ where
                     pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
 
                     prime_partial = context.create_new_integer_variable(lb, ub).scaled(1);
-                    cache.insert(basic_key, prime_partial);
+                    let _ = cache.insert(basic_key, prime_partial);
                     
-                    decomp.insert(prime_partial.get_id(), prime_children.iter().map(|x| x.get_id()).collect_vec());
+                    let _ = decomp.insert(prime_partial.get_id(), prime_children.iter().map(|x| x.get_id()).collect_vec());
                     
                 } else {
                     prime_partial = *cache.get(basic_key.as_slice()).unwrap()
                 }
                 // we have a series of shared variables whose prime exists so we return a scaled version of that base.
                 partial = prime_partial.scaled(scale).offset(offset);
-                cache.insert(cache_key, partial);
+                let _ = cache.insert(cache_key, partial);
             } else {
                 // The worst scenario, there is no shared factor to remove from the variables.
                 // In this case we have to create a fully unique partial.
@@ -149,9 +149,9 @@ where
                 pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
 
                 partial = context.create_new_integer_variable(lb, ub).scaled(1);
-                decomp.insert(partial.get_id(), self.children(i).filter_map(|x| self.get_domain_id(x)).map(|x| x.get_id()).collect_vec());
+                let _ = decomp.insert(partial.get_id(), self.children(i).filter_map(|x| self.get_domain_id(x)).map(|x| x.get_id()).collect_vec());
                 
-                cache.insert(cache_key, partial);
+                let _ = cache.insert(cache_key, partial);
             }
             
             self.partials[i] = Some(partial);
@@ -185,7 +185,7 @@ where
     }
 }
 
-pub fn get_scale_offset_shared(key: &Vec<(i32, i32, u32)>) -> Option<(i32, i32)> {
+pub(crate) fn get_scale_offset_shared(key: &Vec<(i32, i32, u32)>) -> Option<(i32, i32)> {
     if key.is_empty() {
         return None;
     }
@@ -365,19 +365,6 @@ where
         }
     }
 
-    /// Returns a lower bound predicate for the variable at index i.
-    fn get_pred_lower_init(&self, context: &PropagatorInitialisationContext, index: usize) -> Option<Predicate> {
-        if !self.node_exists(index) {
-            return None;
-        }
-        if index >= self.partials.len() {
-            Some(predicate!(self.x[index - self.partials.len()] >= context.lower_bound(&self.x[index - self.partials.len()])))
-        } else {
-            let node = self.partials[index].unwrap();
-            Some(predicate!(node >= context.lower_bound(&node)))
-        }
-    }
-
     /// Returns an upper bound predicate for the variable at index i.
     fn get_pred_upper(&self, context: &PropagationContextMut, index: usize) -> Predicate {
         if index >= self.partials.len() {
@@ -385,19 +372,6 @@ where
         } else {
             let node = self.partials[index].unwrap();
             predicate!(node <= context.upper_bound(&node))
-        }
-    }
-
-    /// Returns a lower bound predicate for the variable at index i.
-    fn get_pred_upper_init(&self, context: &PropagatorInitialisationContext, index: usize) -> Option<Predicate> {
-        if !self.node_exists(index) {
-            return None;
-        }
-        if index >= self.partials.len() {
-            Some(predicate!(self.x[index - self.partials.len()] <= context.upper_bound(&self.x[index - self.partials.len()])))
-        } else {
-            let node = self.partials[index].unwrap();
-            Some(predicate!(node <= context.upper_bound(&node)))
         }
     }
 

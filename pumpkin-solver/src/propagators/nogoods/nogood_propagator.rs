@@ -12,7 +12,7 @@ use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
 use crate::constraints::DECOMPOSED;
 use crate::containers::KeyedVec;
-use crate::engine::conflict_analysis::{ConflictAnalysisContext, Mode};
+use crate::engine::conflict_analysis::Mode;
 use crate::engine::nogoods::Lbd;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
 use crate::engine::predicates::predicate::Predicate;
@@ -32,7 +32,6 @@ use crate::engine::variables::DomainId;
 use crate::engine::ConstraintSatisfactionSolver;
 use crate::engine::EventSink;
 use crate::engine::IntDomainEvent;
-use crate::engine::SolverStatistics;
 use crate::predicate;
 use crate::propagators::nogoods::Nogood;
 use crate::pumpkin_assert_advanced;
@@ -891,7 +890,7 @@ impl Propagator for NogoodPropagator {
     }
 }
 
-pub fn decompose_nogood(clean_nogood: &Vec<Predicate>) -> (Vec<u32>, Vec<u32>) {
+pub(crate) fn decompose_nogood(clean_nogood: &Vec<Predicate>) -> (Vec<u32>, Vec<u32>) {
     let map = DECOMPOSED.lock().unwrap();
 
     let mut decomposed_lb: Vec<u32> = clean_nogood.iter().filter(|x| x.is_lower_bound_predicate()).map(|x| x.get_domain().id).collect();

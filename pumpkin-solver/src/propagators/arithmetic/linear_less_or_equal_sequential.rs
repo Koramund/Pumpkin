@@ -2,7 +2,7 @@ use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::propagation::ReadDomains;
-use crate::engine::propagation::{PropagationContext, Propagator};
+use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
@@ -93,17 +93,18 @@ where
         // Note that this is an invalid key as id 0 belongs to the always true predicate, hence this propagator can never have added it to the map.
         let dummy_key = vec![(-1, -1, 0)];
         if !cache.contains_key(&dummy_key) {
-            cache.insert(dummy_key.clone(), context.create_new_integer_variable(0, 0).scaled(1));
+            let _ = cache.insert(dummy_key.clone(), context.create_new_integer_variable(0, 0).scaled(1));
         }
         partials.push(*cache.get(&dummy_key).unwrap());
         
 
         for (i, locality_cluster) in self.x.chunks(self.m).enumerate() {
             
-            let cache_key = std::iter::once(partials[i].get_determining_props()).chain(
-                locality_cluster.iter().map(|x| x.get_determining_props())
-            ).collect_vec();
+
             
+            let cache_key = std::iter::once(if i == 0 {None} else {Some(partials[i].get_determining_props())}).chain(
+                locality_cluster.iter().map(|x| Some(x.get_determining_props()))
+            ).filter_map(|x| x).collect_vec();
             
             if cache.contains_key(cache_key.as_slice()) {
                 partials.push(*cache.get(cache_key.as_slice()).unwrap());
@@ -114,23 +115,24 @@ where
             let shared = get_scale_offset_shared(&cache_key);
             if let Some((scale, offset)) = shared {
                 
-                let basic_key = std::iter::once((1, 0, partials[i].get_id())).chain(
-                    locality_cluster.iter().map(|x| (1, 0, x.get_id()))
-                ).collect_vec();
+                let basic_key = std::iter::once(if i == 0 {None} else {Some((1, 0, partials[i].get_id()))}).chain(
+                    locality_cluster.iter().map(|x| Some((1, 0, x.get_id())))
+                ).filter_map(|x| x).collect_vec();
 
                 let prime_partial: AffineView<DomainId>;
                 if !cache.contains_key(basic_key.as_slice()) {
-                    let lb: i32 =  std::iter::once(context.lower_bound(&partials[i].get_domain_id())).chain(locality_cluster.iter().map(|x| context.lower_bound(&x.get_domain_id()))).sum();
-                    let ub: i32 =  std::iter::once(context.upper_bound(&partials[i].get_domain_id())).chain(locality_cluster.iter().map(|x| context.upper_bound(&x.get_domain_id()))).sum();
+                    let lb: i32 =  std::iter::once(if i == 0 {0} else {context.lower_bound(&partials[i].get_domain_id())}).chain(locality_cluster.iter().map(|x| context.lower_bound(&x.get_domain_id()))).sum();
+                    let ub: i32 =  std::iter::once(if i == 0 {0} else {context.upper_bound(&partials[i].get_domain_id())}).chain(locality_cluster.iter().map(|x| context.upper_bound(&x.get_domain_id()))).sum();
                     prime_partial = context.create_new_integer_variable(lb, ub).scaled(1);
-                    cache.insert(basic_key, prime_partial);
-                    decomp.insert(prime_partial.get_id(), locality_cluster.iter().map(|x| x.get_id()).chain(std::iter::once(partials[i].get_id())).collect_vec());
+                    let _ = cache.insert(basic_key, prime_partial);
+                    let _ = decomp.insert(prime_partial.get_id(), locality_cluster.iter().map(|x| Some(x.get_id())).chain(
+                        std::iter::once(if i == 0 {None} else {Some(partials[i].get_id())})).filter_map(|x| x).collect_vec());
                     
                 } else {
                     prime_partial = *cache.get(basic_key.as_slice()).unwrap();
                 }
                 let partial = prime_partial.scaled(scale).offset(offset);
-                cache.insert(cache_key, partial);
+                let _ = cache.insert(cache_key, partial);
                 partials.push(partial);
                 
                 continue
@@ -138,14 +140,14 @@ where
             
             
             // No values are in the cache so we built up by hand.
-            let lb: i32 =  std::iter::once(context.lower_bound(&partials[i])).chain(locality_cluster.iter().map(|x| context.lower_bound(x))).sum();
-            let ub: i32 =  std::iter::once(context.upper_bound(&partials[i])).chain(locality_cluster.iter().map(|x| context.upper_bound(x))).sum();
+            let lb: i32 =  std::iter::once(if i == 0 {0} else {context.lower_bound(&partials[i])}).chain(locality_cluster.iter().map(|x| context.lower_bound(x))).sum();
+            let ub: i32 =  std::iter::once(if i == 0 {0} else {context.upper_bound(&partials[i])}).chain(locality_cluster.iter().map(|x| context.upper_bound(x))).sum();
             
             let partial = context.create_new_integer_variable(lb, ub).scaled(1);
 
-            decomp.insert(partial.get_id(), locality_cluster.iter().map(|x| x.get_id()).chain(std::iter::once(partials[i].get_id())).collect_vec());
+            let _ = decomp.insert(partial.get_id(), locality_cluster.iter().map(|x| Some(x.get_id())).chain(std::iter::once(if i == 0 {None} else {Some(partials[i].get_id())})).filter_map(|x| x).collect_vec());
             partials.push(partial);
-            cache.insert(cache_key, partial);
+            let _ = cache.insert(cache_key, partial);
         }
         
         self.x.iter().enumerate().for_each(|(i, x_i)| {
@@ -448,6 +450,25 @@ mod tests {
     use crate::engine::test_solver::TestSolver;
 
     #[test]
+    fn test_trivial_unsat() {
+        let mut solver = TestSolver::default();
+        let a = solver.new_variable(0, 10);
+        let b = solver.new_variable(0, 10);
+        let c = solver.new_variable(0, 10);
+
+        let p1 = solver
+            .new_propagator(LinearLessOrEqualPropagatorSequential::new([a,b,c].into(), 15, Shuffle::None, 1, false))
+            .expect("no empty domains");
+
+        let p2 = solver
+            .new_propagator(LinearLessOrEqualPropagatorSequential::new([a.scaled(-1), b.scaled(-1), c.scaled(-1)].into(), -16, Shuffle::None, 1, false))
+            .expect("no empty domains");
+        
+        solver.propagate(p1).expect("propagation failed");
+        solver.propagate(p2).expect("propagation failed");
+    }
+    
+    #[test]
     fn test_bounds_are_propagated() {
         let mut solver = TestSolver::default();
         let z = solver.new_variable(2, 8);
@@ -463,7 +484,7 @@ mod tests {
 
         solver.propagate(propagator).expect("non-empty domain");
 
-        solver.increase_lower_bound_and_notify(propagator, 1, z1, 2);
+        let _ = solver.increase_lower_bound_and_notify(propagator, 1, z1, 2);
 
         solver.propagate(propagator).expect("non-empty domain");
 
