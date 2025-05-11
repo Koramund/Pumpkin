@@ -1,6 +1,7 @@
 use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
-use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
+use crate::basic_types::{Inconsistency, PropagationStatusCP};
+use crate::constraints::PARTIAL_ENCODINGS;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
@@ -8,11 +9,10 @@ use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
 use crate::engine::DomainEvents;
 use crate::predicate;
+use crate::propagators::linear_less_or_equal_totalizer::get_scale_offset_shared;
 use crate::variables::{AffineView, DomainId, TransformableVariable};
 use itertools::Itertools;
 use std::cmp::min;
-use crate::constraints::{DECOMPOSED, PARTIAL_ENCODINGS};
-use crate::propagators::linear_less_or_equal_totalizer::get_scale_offset_shared;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -88,7 +88,7 @@ where
         }
         
         let mut cache = PARTIAL_ENCODINGS.lock().unwrap();
-        let mut decomp = DECOMPOSED.lock().unwrap();
+        
         
         // Note that this is an invalid key as id 0 belongs to the always true predicate, hence this propagator can never have added it to the map.
         let dummy_key = vec![(-1, -1, 0)];
@@ -125,9 +125,7 @@ where
                     let ub: i32 =  std::iter::once(if i == 0 {0} else {context.upper_bound(&partials[i].get_domain_id())}).chain(locality_cluster.iter().map(|x| context.upper_bound(&x.get_domain_id()))).sum();
                     prime_partial = context.create_new_integer_variable(lb, ub).scaled(1);
                     let _ = cache.insert(basic_key, prime_partial);
-                    let _ = decomp.insert(prime_partial.get_id(), locality_cluster.iter().map(|x| Some(x.get_id())).chain(
-                        std::iter::once(if i == 0 {None} else {Some(partials[i].get_id())})).filter_map(|x| x).collect_vec());
-                    
+
                 } else {
                     prime_partial = *cache.get(basic_key.as_slice()).unwrap();
                 }
@@ -144,8 +142,7 @@ where
             let ub: i32 =  std::iter::once(if i == 0 {0} else {context.upper_bound(&partials[i])}).chain(locality_cluster.iter().map(|x| context.upper_bound(x))).sum();
             
             let partial = context.create_new_integer_variable(lb, ub).scaled(1);
-
-            let _ = decomp.insert(partial.get_id(), locality_cluster.iter().map(|x| Some(x.get_id())).chain(std::iter::once(if i == 0 {None} else {Some(partials[i].get_id())})).filter_map(|x| x).collect_vec());
+            
             partials.push(partial);
             let _ = cache.insert(cache_key, partial);
         }

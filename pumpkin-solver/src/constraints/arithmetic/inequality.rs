@@ -15,7 +15,7 @@ use std::sync::{LazyLock, Mutex};
 // Currently, we'll mark offset to 0 until the thing is expanded.
 pub static PARTIAL_ENCODINGS: LazyLock<Mutex<HashMap<Vec<(i32, i32, u32)>, AffineView<DomainId>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub static DECOMPOSED: LazyLock<Mutex<HashMap<u32, Vec<u32>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+// pub static DECOMPOSED: LazyLock<Mutex<HashMap<u32, Vec<u32>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Create the [`NegatableConstraint`] `\sum terms_i <= rhs`.
 ///
