@@ -10,6 +10,7 @@ use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::Inconsistency;
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
+use crate::constraints::DECOMPOSED;
 use crate::containers::KeyedVec;
 use crate::engine::conflict_analysis::Mode;
 use crate::engine::nogoods::Lbd;
@@ -31,7 +32,6 @@ use crate::engine::variables::DomainId;
 use crate::engine::ConstraintSatisfactionSolver;
 use crate::engine::EventSink;
 use crate::engine::IntDomainEvent;
-use crate::engine::SolverStatistics;
 use crate::predicate;
 use crate::propagators::nogoods::Nogood;
 use crate::pumpkin_assert_advanced;
@@ -260,6 +260,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
 
+                            report_duplicates_on_propagation(&mut context, &nogood.as_vec());
+                            
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
                             if let Err(e) = result {
@@ -396,6 +398,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
 
+                            report_duplicates_on_propagation(&mut context, &nogood.as_vec());
+                            
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
                             if let Err(e) = result {
@@ -590,6 +594,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
 
+                            report_duplicates_on_propagation(&mut context, &nogood.as_vec());
+                            
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
                             if let Err(e) = result {
@@ -727,6 +733,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
 
+                            report_duplicates_on_propagation(&mut context, &nogood.as_vec());
+                            
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
                             if let Err(e) = result {
@@ -882,6 +890,120 @@ impl Propagator for NogoodPropagator {
     }
 }
 
+pub(crate) fn decompose_nogood(clean_nogood: &Vec<Predicate>) -> (Vec<u32>, Vec<u32>) {
+    let map = DECOMPOSED.lock().unwrap();
+
+    let mut decomposed_lb: Vec<u32> = clean_nogood.iter().filter(|x| x.is_lower_bound_predicate()).map(|x| x.get_domain().id).collect();
+    let mut decomposed_ub: Vec<u32> = clean_nogood.iter().filter(|x| !x.is_lower_bound_predicate()).map(|x| x.get_domain().id).collect();
+
+    let mut alteration = true;
+    while alteration {
+        alteration = false;
+
+        let mut inter_lb: Vec<u32> = Vec::new();
+
+        for id in decomposed_lb.iter() {
+            if map.contains_key(id) {
+                for decomp_id in map.get(id).unwrap().iter() {
+                    inter_lb.push(*decomp_id);
+                }
+                alteration = true;
+            } else {
+                inter_lb.push(*id);
+            }
+        }
+
+        let mut inter_ub: Vec<u32> = Vec::new();
+
+        for id in decomposed_ub.iter() {
+            if map.contains_key(id) {
+                for decomp_id in map.get(id).unwrap().iter() {
+                    inter_ub.push(*decomp_id);
+                }
+                alteration = true;
+            } else {
+                inter_ub.push(*id);
+            }
+        }
+
+        decomposed_lb = inter_lb;
+        decomposed_ub = inter_ub;
+
+        decomposed_lb.sort();
+        decomposed_ub.sort();
+    }
+    (decomposed_lb, decomposed_ub)
+}
+
+// Simply reports if the propagated nogood did contain some form of extended resolution
+fn report_extended_resolution_on_propagation(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    let decomp = DECOMPOSED.lock().unwrap();
+
+    let flag = nogood.iter().map(|x| x.get_domain().id).any(|x| decomp.contains_key(&x));
+    context.counters.learned_clause_statistics.propagated_with_extended.add_term(u64::from(flag));
+}
+
+fn report_extended_resolution_on_learning(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    let decomp = DECOMPOSED.lock().unwrap();
+
+    let flag = nogood.iter().map(|x| x.get_domain().id).any(|x| decomp.contains_key(&x));
+    context.counters.learned_clause_statistics.chance_contains_extended_resolution.add_term(u64::from(flag));
+
+    if flag {
+        context.counters.learned_clause_statistics.average_extended_clause_size.add_term(nogood.len() as u64);
+    }
+}
+
+fn report_duplicates_on_propagation(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    report_extended_resolution_on_propagation(context, nogood);
+    let (mut decomposed_lb, mut decomposed_ub) = decompose_nogood(nogood);
+
+    let lb_og = decomposed_lb.len();
+    let ub_og = decomposed_ub.len();
+
+    decomposed_lb.dedup();decomposed_ub.dedup();
+
+    let lb_pruned = decomposed_lb.len();
+    let ub_pruned = decomposed_ub.len();
+
+    let flag = lb_og != lb_pruned || ub_og != ub_pruned;
+    
+    context.counters.learned_clause_statistics.propagated_on_learned_clause = 1 + context.counters.learned_clause_statistics.propagated_on_learned_clause;
+    
+    context.counters.learned_clause_statistics.propagated_with_duplicate.add_term(u64::from(flag));
+}
+
+fn report_duplicates_on_learning(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    report_extended_resolution_on_learning(context, nogood);
+    let (mut decomposed_lb, mut decomposed_ub) = decompose_nogood(&nogood);
+
+    let lb_og = decomposed_lb.len();
+    let ub_og = decomposed_ub.len();
+
+    decomposed_lb.dedup();
+    decomposed_ub.dedup();
+
+    let lb_pruned = decomposed_lb.len();
+    let ub_pruned = decomposed_ub.len();
+
+    let total_duplicates = (lb_og - lb_pruned) + (ub_og - ub_pruned);
+    let total_predicates = ub_og + lb_og;
+
+    context.counters.learned_clause_statistics.average_overlap.add_term((total_duplicates as f64) / (total_predicates as f64));
+
+    context.counters.learned_clause_statistics.overlapping_predicates = (total_duplicates as u64) + context.counters.learned_clause_statistics.overlapping_predicates;
+    context.counters.learned_clause_statistics.total_predicates = (total_predicates as u64) + context.counters.learned_clause_statistics.total_predicates;
+
+    if total_duplicates > 0 {
+        context.counters.learned_clause_statistics.average_duplicate_clause_size.add_term(nogood.len() as u64);
+        context.counters.learned_clause_statistics.chance_contains_overlap.add_term(1)
+        // dbg!("Duplication is: ", (total_duplicates as f64) / (total_predicates as f64));
+    } else {
+        context.counters.learned_clause_statistics.chance_contains_overlap.add_term(0)
+    }
+}
+
+
 /// Functions for adding nogoods
 impl NogoodPropagator {
     /// Adds a nogood which has been learned during search.
@@ -892,7 +1014,6 @@ impl NogoodPropagator {
         &mut self,
         nogood: Vec<Predicate>,
         context: &mut PropagationContextMut,
-        statistics: &mut SolverStatistics,
     ) {
         // We treat unit nogoods in a special way by adding it as a permanent nogood at the
         // root-level; this is essentially the same as adding a predicate at the root level
@@ -912,10 +1033,12 @@ impl NogoodPropagator {
             .lbd_helper
             .compute_lbd(&nogood.as_slice()[1..], context.assignments());
 
-        statistics
+        context.counters
             .learned_clause_statistics
             .average_lbd
             .add_term(lbd as u64);
+        
+        report_duplicates_on_learning(context, &nogood);
 
         // Add the nogood to the database.
         //
@@ -1359,7 +1482,7 @@ impl NogoodPropagator {
                 .filter(|p| **p != !propagated_predicate)
                 .copied()
                 .collect();
-
+            
             context.post_predicate(propagated_predicate, reason)?;
         }
         Ok(())
@@ -1484,6 +1607,7 @@ mod tests {
                 &mut solver.reason_store,
                 &mut solver.semantic_minimiser,
                 propagator,
+                &mut solver.solver_statistics,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)
@@ -1525,6 +1649,7 @@ mod tests {
                 &mut solver.reason_store,
                 &mut solver.semantic_minimiser,
                 propagator,
+                &mut solver.solver_statistics,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)

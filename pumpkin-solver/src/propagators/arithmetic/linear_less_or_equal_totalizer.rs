@@ -1,3 +1,4 @@
+use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
 use crate::basic_types::PropositionalConjunction;
 use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::engine::cp::propagation::ReadDomains;
@@ -7,11 +8,11 @@ use crate::engine::propagation::{LocalId, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
 use crate::engine::DomainEvents;
 use crate::predicates::Predicate;
-use crate::variables::DomainId;
+use crate::variables::{AffineView, DomainId, TransformableVariable};
 use crate::{predicate, pumpkin_assert_simple};
 use itertools::Itertools;
 use std::ops::Range;
-use crate::basic_types::linear_options::{proxy_sort, random_shuffle, Shuffle};
+use crate::constraints::{DECOMPOSED, PARTIAL_ENCODINGS};
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -21,7 +22,7 @@ pub(crate) struct LinearLessOrEqualPropagatorTotalizer<Var> {
     equality: bool,
 
     // Represents the partial sums.
-    partials: Box<[Option<DomainId>]>,
+    partials: Box<[Option<AffineView<DomainId>>]>,
     b: usize,
 
     shuffle_strategy: Shuffle,
@@ -55,12 +56,22 @@ where
         &self,
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
-
+        self.initial_constraint(&mut context)?;
         self.push_lower_bound_up(&mut context)?;
         self.push_upper_bound_up(&mut context)?;
         self.push_upper_bound_down(&mut context)?;
         self.push_lower_bound_down(&mut context)?;
         
+        Ok(())
+    }
+
+    fn propagate(&mut self, mut context: PropagationContextMut) -> PropagationStatusCP {
+        self.initial_constraint(&mut context)?;
+        self.push_lower_bound_up(&mut context)?;
+        self.push_upper_bound_up(&mut context)?;
+        self.push_upper_bound_down(&mut context)?;
+        self.push_lower_bound_down(&mut context)?;
+
         Ok(())
     }
 
@@ -74,7 +85,10 @@ where
             Shuffle::Scalar => {self.x = proxy_sort(&self.x, &self.x.iter().map(|x| x.get_scale()).collect_vec().into_boxed_slice())}
             Shuffle::Random => {self.x = random_shuffle(&self.x, 42)}
         }
-
+        
+        let mut cache = PARTIAL_ENCODINGS.lock().unwrap();
+        let mut decomp = DECOMPOSED.lock().unwrap();
+        
         // TODO double check this size calculation
         // Note that floating precision may bite us and create a larger tree than necessary.
         let height = (self.x.len() as f64).log(self.b as f64).ceil() as u32;
@@ -90,27 +104,55 @@ where
                 continue;
             }
             
-            let mut lb: i32 = self.children(i).filter_map(|j| self.get_lower_init(context, j)).sum();
-            let mut ub: i32 = self.children(i).filter_map(|j| self.get_upper_init(context, j)).sum();
-            
-            if i == 0 {
-                if self.c < lb {
-                    return Err(PropositionalConjunction::from(self.children(i).filter_map(|j| self.get_pred_lower_init(context, j)).collect_vec()));
-                }
-                ub = self.c;
+            let partial: AffineView<DomainId>;
 
-                // small extension to generalize to equalities.
-                if self.equality {
-                    if self.c > ub {
-                        return Err(PropositionalConjunction::from(self.children(i).filter_map(|j| self.get_pred_upper_init(context, j)).collect_vec()));
-                    }
-                    lb = self.c
+            let cache_key = self.children(i).filter_map(|x| self.get_characteristics(x)).collect_vec();
+            let shared = get_scale_offset_shared(&cache_key);
+
+            if cache.contains_key(cache_key.as_slice()) {
+                // the exact scenario has occurred before so take that partial sum back from the cache.
+                partial = *cache.get(cache_key.as_slice()).unwrap()
+                // TODO should be extended to just find factorizations as well. aka it could maybe divided everything by 2. Or offset everything by 1.
+            } else if let Some((scale, offset)) = shared {
+                // scale and offset are matched so potentially there are other vars in the cache.
+               let basic_key = self.children(i).filter_map(|x| self.get_basic_characteristics(x)).collect_vec();
+                
+                let prime_partial: AffineView<DomainId>;
+                
+                // There are shared variables but their prime is not yet in the map so we insert that first.
+                if !cache.contains_key(basic_key.as_slice()) {
+                    let prime_children = self.children(i).filter_map(|x| self.get_domain_id(x)).collect_vec();
+                    
+                    let lb: i32 = prime_children.iter().map(|x| context.lower_bound(x)).sum();
+                    let ub: i32 = prime_children.iter().map(|x| context.upper_bound(x)).sum();
+                    pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
+
+                    prime_partial = context.create_new_integer_variable(lb, ub).scaled(1);
+                    let _ = cache.insert(basic_key, prime_partial);
+                    
+                    let _ = decomp.insert(prime_partial.get_id(), prime_children.iter().map(|x| x.get_id()).collect_vec());
+                    
+                } else {
+                    prime_partial = *cache.get(basic_key.as_slice()).unwrap()
                 }
+                // we have a series of shared variables whose prime exists so we return a scaled version of that base.
+                partial = prime_partial.scaled(scale).offset(offset);
+                let _ = cache.insert(cache_key, partial);
+            } else {
+                // The worst scenario, there is no shared factor to remove from the variables.
+                // In this case we have to create a fully unique partial.
+                
+                
+                let lb: i32 = self.children(i).filter_map(|j| self.get_lower_init(context, j)).sum();
+                let ub: i32 = self.children(i).filter_map(|j| self.get_upper_init(context, j)).sum();
+                
+                pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
+
+                partial = context.create_new_integer_variable(lb, ub).scaled(1);
+                let _ = decomp.insert(partial.get_id(), self.children(i).filter_map(|x| self.get_domain_id(x)).map(|x| x.get_id()).collect_vec());
+                
+                let _ = cache.insert(cache_key, partial);
             }
-
-            pumpkin_assert_simple!(lb <= ub, "Cannot create variables with inconsistent domains, ub < lb for index {i}, lb: {lb} ub: {ub}");
-
-            let partial = context.create_new_integer_variable(lb, ub);
             
             self.partials[i] = Some(partial);
             let _ = context.register(
@@ -127,12 +169,36 @@ where
                 LocalId::from((i + size) as u32),
             );
         });
+        // Sanity check on lb and ub. Otherwise raise an inconsistency.
+        let root = self.partials[0].unwrap();
+        
+        if self.c < context.lower_bound(&root) {
+            return Err(PropositionalConjunction::from(predicate!(root >= self.c+1)));
+        }
+        if self.equality && self.c > context.upper_bound(&root) {
+            return Err(PropositionalConjunction::from(predicate!(root <= self.c-1)));
+        }
+
+        // dbg!(&self.x.iter().map(|x| x.get_domain_id()).collect_vec(), &self.partials);
         
         Ok(())
     }
 }
 
+pub(crate) fn get_scale_offset_shared(key: &Vec<(i32, i32, u32)>) -> Option<(i32, i32)> {
+    if key.is_empty() {
+        return None;
+    }
 
+    let (first_i32, second_i32, _) = key[0];
+    let all_match = key.iter().all(|&(a, b, _)| a == first_i32 && b == second_i32);
+
+    if all_match {
+        Some((first_i32, second_i32))
+    } else {
+        None
+    }
+}
 
 impl<Var: 'static> LinearLessOrEqualPropagatorTotalizer<Var>
 where
@@ -148,6 +214,55 @@ where
             match self.partials[index] {
                 None => false,
                 Some(_) => true,
+            }
+        }
+    }
+
+
+    fn get_domain_id(&self, index: usize) -> Option<DomainId> {
+        if index >= self.partials.len() {
+            let node = self.x.get(index - self.partials.len());
+            match node {
+                None => None,
+                Some(x) => Some(x.get_domain_id()),
+            }
+        } else {
+            let node = self.partials[index];
+            match node {
+                None => None,
+                Some(x) => Some(x.get_domain_id())
+            }
+        }
+    }
+     
+    fn get_characteristics(&self, index: usize) -> Option<(i32, i32, u32)> {
+        if index >= self.partials.len() {
+            let node = self.x.get(index - self.partials.len());
+            match node {
+                None => None,
+                Some(x) => Some(x.get_determining_props()),
+            }
+        } else {
+            let node = self.partials[index];
+            match node {
+                None => None,
+                Some(x) => Some(x.get_determining_props())
+            }
+        }
+    }
+
+    fn get_basic_characteristics(&self, index: usize) -> Option<(i32, i32, u32)> {
+        if index >= self.partials.len() {
+            let node = self.x.get(index - self.partials.len());
+            match node {
+                None => None,
+                Some(x) => Some((1, 0, x.get_id())),
+            }
+        } else {
+            let node = self.partials[index];
+            match node {
+                None => None,
+                Some(x) => Some((1, 0, x.get_id()))
             }
         }
     }
@@ -250,19 +365,6 @@ where
         }
     }
 
-    /// Returns a lower bound predicate for the variable at index i.
-    fn get_pred_lower_init(&self, context: &PropagatorInitialisationContext, index: usize) -> Option<Predicate> {
-        if !self.node_exists(index) {
-            return None;
-        }
-        if index >= self.partials.len() {
-            Some(predicate!(self.x[index - self.partials.len()] >= context.lower_bound(&self.x[index - self.partials.len()])))
-        } else {
-            let node = self.partials[index].unwrap();
-            Some(predicate!(node >= context.lower_bound(&node)))
-        }
-    }
-
     /// Returns an upper bound predicate for the variable at index i.
     fn get_pred_upper(&self, context: &PropagationContextMut, index: usize) -> Predicate {
         if index >= self.partials.len() {
@@ -273,22 +375,23 @@ where
         }
     }
 
-    /// Returns a lower bound predicate for the variable at index i.
-    fn get_pred_upper_init(&self, context: &PropagatorInitialisationContext, index: usize) -> Option<Predicate> {
-        if !self.node_exists(index) {
-            return None;
-        }
-        if index >= self.partials.len() {
-            Some(predicate!(self.x[index - self.partials.len()] <= context.upper_bound(&self.x[index - self.partials.len()])))
-        } else {
-            let node = self.partials[index].unwrap();
-            Some(predicate!(node <= context.upper_bound(&node)))
-        }
-    }
-
     /// Returns the range of child indices for the parent at index.
     fn children(&self, index: usize) -> Range<usize> {
         (index*self.b + 1)..(index*self.b + self.b + 1)
+    }
+    
+    fn initial_constraint(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        let root = &self.partials[0].unwrap();
+        // Supplying empty reasons should make these roots? Also this just updates the roots accordingly.
+        if context.upper_bound(root) > self.c {
+            context.set_upper_bound(root, self.c, PropositionalConjunction::default())?;
+        }
+        
+        if self.equality && context.lower_bound(root) < self.c {
+            context.set_lower_bound(root, self.c, PropositionalConjunction::default())?;
+        }
+        
+        Ok(())
     }
 
     /// Given a consumption by the leaf nodes, push this information back up to the root node.

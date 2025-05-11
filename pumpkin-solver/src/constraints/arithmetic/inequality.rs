@@ -1,13 +1,21 @@
-use std::num::NonZero;
 use crate::basic_types::linear_options::LinearInequalityType;
 use crate::constraints::Constraint;
 use crate::constraints::NegatableConstraint;
-use crate::propagators::linear_less_or_equal_sequential::LinearLessOrEqualPropagatorSequential;
-use crate::variables::IntegerVariable;
-use crate::ConstraintOperationError;
 use crate::propagators::linear_less_or_equal_default::LinearLessOrEqualPropagatorDefault;
+use crate::propagators::linear_less_or_equal_sequential::LinearLessOrEqualPropagatorSequential;
 use crate::propagators::linear_less_or_equal_totalizer::LinearLessOrEqualPropagatorTotalizer;
+use crate::variables::{AffineView, DomainId, IntegerVariable};
+use crate::ConstraintOperationError;
 use crate::Solver;
+use std::collections::HashMap;
+use std::num::NonZero;
+use std::sync::{LazyLock, Mutex};
+
+// Maps a series of offset, scale, inner id to a corresponding partial sum variable.
+// Currently, we'll mark offset to 0 until the thing is expanded.
+pub static PARTIAL_ENCODINGS: LazyLock<Mutex<HashMap<Vec<(i32, i32, u32)>, AffineView<DomainId>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub static DECOMPOSED: LazyLock<Mutex<HashMap<u32, Vec<u32>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Create the [`NegatableConstraint`] `\sum terms_i <= rhs`.
 ///
