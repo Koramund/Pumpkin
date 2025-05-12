@@ -1,16 +1,19 @@
+use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::engine::conflict_analysis::SemanticMinimiser;
 use crate::engine::predicates::predicate::Predicate;
-use crate::engine::propagation::PropagatorId;
+use crate::engine::propagation::{PropagatorId, PropagatorInitialisationContext};
 use crate::engine::reason::Reason;
 use crate::engine::reason::ReasonStore;
 use crate::engine::reason::StoredReason;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::variables::Literal;
-use crate::engine::Assignments;
+use crate::engine::{Assignments, WatchListCP};
 use crate::engine::EmptyDomain;
 use crate::engine::TrailedAssignments;
 use crate::engine::TrailedInt;
 use crate::pumpkin_assert_simple;
+use crate::variable_names::VariableNames;
+use crate::variables::DomainId;
 
 pub(crate) struct StatefulPropagationContext<'a> {
     pub(crate) stateful_assignments: &'a mut TrailedAssignments,
@@ -62,6 +65,9 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) propagator_id: PropagatorId,
     pub(crate) semantic_minimiser: &'a mut SemanticMinimiser,
     reification_literal: Option<Literal>,
+    pub(crate) watch_list_cp: &'a mut WatchListCP,
+    pub(crate) variable_names: &'a mut VariableNames,
+    pub(crate) cumulative_literals: &'a mut Vec<CumulativeLiteral>,
 }
 
 impl<'a> PropagationContextMut<'a> {
@@ -71,6 +77,9 @@ impl<'a> PropagationContextMut<'a> {
         reason_store: &'a mut ReasonStore,
         semantic_minimiser: &'a mut SemanticMinimiser,
         propagator_id: PropagatorId,
+        watch_list_cp: &'a mut WatchListCP,
+        variable_names: &'a mut VariableNames,
+        cumulative_literals: &'a mut Vec<CumulativeLiteral>,
     ) -> Self {
         PropagationContextMut {
             stateful_assignments,
@@ -79,9 +88,48 @@ impl<'a> PropagationContextMut<'a> {
             propagator_id,
             semantic_minimiser,
             reification_literal: None,
+            watch_list_cp,
+            variable_names,
+            cumulative_literals
         }
     }
 
+    pub(crate) fn create_new_literal(&mut self, name: Option<String>) -> Literal {
+        let domain_id = self.create_new_integer_variable(0, 1, name);
+        Literal::new(domain_id)
+    }
+
+    /// Create a new integer variable. Its domain will have the given lower and upper bounds.
+    pub(crate) fn create_new_integer_variable(
+        &mut self,
+        lower_bound: i32,
+        upper_bound: i32,
+        name: Option<String>,
+    ) -> DomainId {
+        assert!(
+            lower_bound <= upper_bound,
+            "Variables cannot be created in an inconsistent state"
+        );
+
+        let domain_id = self.assignments.grow(lower_bound, upper_bound);
+        self.watch_list_cp.grow();
+
+        if let Some(name) = name {
+            self.variable_names.add_integer(domain_id, name);
+        }
+
+        domain_id
+    }
+    
+    pub(crate) fn as_initialisation_context(&mut self) -> PropagatorInitialisationContext {
+        PropagatorInitialisationContext::new(
+            &mut self.watch_list_cp,
+            &mut self.stateful_assignments,
+            self.propagator_id,
+            &mut self.assignments,
+        )
+    }
+    
     /// Apply a reification literal to all the explanations that are passed to the context.
     pub(crate) fn with_reification(&mut self, reification_literal: Literal) {
         pumpkin_assert_simple!(
