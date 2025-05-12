@@ -11,7 +11,7 @@ use super::predicates::predicate::Predicate;
 use super::propagation::store::PropagatorStore;
 use super::propagation::ExplanationContext;
 use super::reason::ReasonStore;
-use super::ConstraintSatisfactionSolver;
+use super::{ConstraintSatisfactionSolver, WatchListCP};
 use super::TrailedAssignments;
 use crate::basic_types::Inconsistency;
 use crate::basic_types::PropositionalConjunction;
@@ -19,6 +19,7 @@ use crate::engine::cp::Assignments;
 use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorId;
+use crate::variable_names::VariableNames;
 
 #[derive(Copy, Clone)]
 pub(crate) struct DebugDyn<'a> {
@@ -75,12 +76,18 @@ impl DebugHelper {
 
             let mut reason_store = Default::default();
             let mut semantic_minimiser = SemanticMinimiser::default();
+            let mut watch_list = WatchListCP::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
                 &mut reason_store,
                 &mut semantic_minimiser,
                 PropagatorId(propagator_id as u32),
+                &mut watch_list,
+                &mut variable_names,
+                &mut vec,
             );
             let propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -230,12 +237,18 @@ impl DebugHelper {
                 // Now propagate using the debug propagation method.
                 let mut reason_store = Default::default();
                 let mut semantic_minimiser = SemanticMinimiser::default();
+                let mut watch_list = WatchListCP::default();
+                let mut variable_names = VariableNames::default();
+                let mut vec = vec![];
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
                     &mut reason_store,
                     &mut semantic_minimiser,
                     propagator_id,
+                    &mut watch_list,
+                    &mut variable_names,
+                    &mut vec,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -341,12 +354,18 @@ impl DebugHelper {
                 loop {
                     let num_predicates_before = assignments_clone.num_trail_entries();
 
+                    let mut watch_list = WatchListCP::default();
+                    let mut variable_names = VariableNames::default();
+                    let mut vec = vec![];
                     let context = PropagationContextMut::new(
                         &mut stateful_assignments_clone,
                         &mut assignments_clone,
                         &mut reason_store,
                         &mut semantic_minimiser,
                         propagator_id,
+                        &mut watch_list,
+                        &mut variable_names,
+                        &mut vec,
                     );
                     let debug_propagation_status_cp =
                         propagator.debug_propagate_from_scratch(context);
@@ -404,12 +423,18 @@ impl DebugHelper {
             //  now propagate using the debug propagation method
             let mut reason_store = Default::default();
             let mut semantic_minimiser = SemanticMinimiser::default();
+            let mut watch_list = WatchListCP::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
                 &mut reason_store,
                 &mut semantic_minimiser,
                 propagator_id,
+                &mut watch_list,
+                &mut variable_names,
+                &mut vec,
             );
             let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
             assert!(
@@ -465,12 +490,18 @@ impl DebugHelper {
             if outcome.is_ok() {
                 let mut reason_store = Default::default();
                 let mut semantic_minimiser = SemanticMinimiser::default();
+                let mut watch_list = WatchListCP::default();
+                let mut variable_names = VariableNames::default();
+                let mut vec = vec![];
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
                     &mut reason_store,
                     &mut semantic_minimiser,
                     propagator_id,
+                    &mut watch_list,
+                    &mut variable_names,
+                    &mut vec,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 

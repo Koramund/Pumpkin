@@ -26,6 +26,7 @@ use crate::engine::DomainEvents;
 use crate::engine::EmptyDomain;
 use crate::engine::WatchListCP;
 use crate::predicates::PropositionalConjunction;
+use crate::variable_names::VariableNames;
 
 /// A container for CP variables, which can be used to test propagators.
 #[derive(Debug)]
@@ -35,7 +36,8 @@ pub(crate) struct TestSolver {
     pub reason_store: ReasonStore,
     pub semantic_minimiser: SemanticMinimiser,
     pub stateful_assignments: TrailedAssignments,
-    watch_list: WatchListCP,
+    pub watch_list: WatchListCP,
+    pub variable_names: VariableNames,
 }
 
 impl Default for TestSolver {
@@ -47,6 +49,7 @@ impl Default for TestSolver {
             semantic_minimiser: Default::default(),
             watch_list: Default::default(),
             stateful_assignments: Default::default(),
+            variable_names: Default::default(),
         };
         // We allocate space for the zero-th dummy variable at the root level of the assignments.
         solver.watch_list.grow();
@@ -78,12 +81,16 @@ impl TestSolver {
             id,
             &mut self.assignments,
         ))?;
+        let mut vec = vec![];
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             PropagatorId(0),
+            &mut self.watch_list,
+            &mut self.variable_names,
+            &mut vec,
         );
         self.propagator_store[id].propagate(context)?;
 
@@ -175,12 +182,16 @@ impl TestSolver {
     }
 
     pub(crate) fn propagate(&mut self, propagator: PropagatorId) -> Result<(), Inconsistency> {
+        let mut vec = vec![];
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             PropagatorId(0),
+            &mut self.watch_list,
+            &mut self.variable_names,
+            &mut vec,
         );
         self.propagator_store[propagator].propagate(context)
     }
@@ -193,6 +204,7 @@ impl TestSolver {
         self.notify_propagator(propagator);
         loop {
             {
+                let mut vec = vec![];
                 // Specify the life-times to be able to retrieve the trail entries
                 let context = PropagationContextMut::new(
                     &mut self.stateful_assignments,
@@ -200,6 +212,9 @@ impl TestSolver {
                     &mut self.reason_store,
                     &mut self.semantic_minimiser,
                     PropagatorId(0),
+                    &mut self.watch_list,
+                    &mut self.variable_names,
+                    &mut vec,
                 );
                 self.propagator_store[propagator].propagate(context)?;
                 self.notify_propagator(propagator);

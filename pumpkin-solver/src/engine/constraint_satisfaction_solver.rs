@@ -28,6 +28,7 @@ use super::TrailedAssignments;
 use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::CSPSolverExecutionFlag;
 use crate::basic_types::ConstraintOperationError;
+use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::basic_types::HashMap;
 use crate::basic_types::Inconsistency;
 use crate::basic_types::PropagationStatusCP;
@@ -974,12 +975,16 @@ impl ConstraintSatisfactionSolver {
     }
 
     fn add_learned_nogood(&mut self, learned_nogood: LearnedNogood) {
+        let mut vec = vec![];
         let mut context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             Self::get_nogood_propagator_id(),
+            &mut self.watch_list_cp,
+            &mut self.variable_names,
+            &mut vec,
         );
 
         ConstraintSatisfactionSolver::add_asserting_nogood_to_nogood_propagator(
@@ -1165,6 +1170,7 @@ impl ConstraintSatisfactionSolver {
             let tag = self.propagators.get_tag(propagator_id);
             let num_trail_entries_before = self.assignments.num_trail_entries();
 
+            let mut cumulative_literals: Vec<CumulativeLiteral> = vec![];
             let propagation_status = {
                 let propagator = &mut self.propagators[propagator_id];
                 let context = PropagationContextMut::new(
@@ -1173,10 +1179,18 @@ impl ConstraintSatisfactionSolver {
                     &mut self.reason_store,
                     &mut self.semantic_minimiser,
                     propagator_id,
+                    &mut self.watch_list_cp,
+                    &mut self.variable_names,
+                    &mut cumulative_literals
                 );
                 propagator.propagate(context)
             };
-
+            
+            for lit in cumulative_literals.into_iter() {
+                let _ = self.add_valid_intialised_propagator_during_search(lit.prop1, None);
+                let _ = self.add_valid_intialised_propagator_during_search(lit.prop2, None);
+            }
+            
             if self.assignments.get_decision_level() == 0 {
                 self.log_root_propagation_to_proof(num_trail_entries_before, tag);
             }
@@ -1393,6 +1407,30 @@ impl ConstraintSatisfactionSolver {
         }
     }
 
+    /// Post a new propagator to the solver.
+    pub(crate) fn add_valid_intialised_propagator_during_search(
+        &mut self,
+        propagator_to_add: impl Propagator + 'static,
+        tag: Option<NonZero<u32>>,
+    ) -> Result<(), ConstraintOperationError> {
+        pumpkin_assert_simple!(
+            propagator_to_add.priority() <= 3,
+            "The propagator priority exceeds 3.
+             Currently we only support values up to 3,
+             but this can easily be changed if there is a good reason."
+        );
+
+        let new_propagator_id = self.propagators.alloc(Box::new(propagator_to_add), tag);
+
+        let new_propagator = &mut self.propagators[new_propagator_id];
+        
+        // TODO enqueuing can probably be removed, depending on how timetable implements this these should already be propagated to a fixpoint?
+        self.propagator_queue.enqueue_propagator(new_propagator_id, new_propagator.priority());
+
+        self.propagate();
+        Ok(())
+    }
+    
     pub fn post_predicate(&mut self, predicate: Predicate) -> Result<(), ConstraintOperationError> {
         assert!(
             self.get_decision_level() == 0,
@@ -1413,12 +1451,17 @@ impl ConstraintSatisfactionSolver {
         pumpkin_assert_eq_simple!(self.get_decision_level(), 0);
         let num_trail_entries = self.assignments.num_trail_entries();
 
+        
+        let mut vec = vec![];
         let mut propagation_context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             Self::get_nogood_propagator_id(),
+            &mut self.watch_list_cp,
+            &mut self.variable_names,
+            &mut vec,
         );
         let nogood_propagator_id = Self::get_nogood_propagator_id();
 

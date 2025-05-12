@@ -434,13 +434,14 @@ pub(crate) mod test_propagation_handler {
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
     use crate::engine::reason::ReasonStore;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, WatchListCP};
     use crate::engine::TrailedAssignments;
     use crate::predicate;
     use crate::predicates::Predicate;
     use crate::predicates::PropositionalConjunction;
     use crate::propagators::ResourceProfile;
     use crate::propagators::Task;
+    use crate::variable_names::VariableNames;
     use crate::variables::DomainId;
 
     pub(crate) struct TestPropagationHandler {
@@ -527,6 +528,9 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -588,6 +592,9 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
                     ),
                     &[&profile_y, &profile_z],
                     &Rc::new(propagating_task),
@@ -636,6 +643,9 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -697,6 +707,9 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
                     ),
                     &[&profile_z, &profile_y],
                     &Rc::new(propagating_task),

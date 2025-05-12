@@ -11,6 +11,7 @@ pub(crate) mod sequence_generators;
 mod solution;
 mod stored_conflict_info;
 mod trail;
+pub(crate) mod cumulative_literal;
 
 pub use constraint_operation_error::ConstraintOperationError;
 pub(crate) use csp_solver_execution_flag::CSPSolverExecutionFlag;
