@@ -69,6 +69,7 @@ impl CumulativePropagationHandler {
     {
         pumpkin_assert_simple!(!profiles.is_empty());
         match self.explanation_type {
+            //TODO just introduce a new type here and voilla, we're in.
             CumulativeExplanationType::Naive | CumulativeExplanationType::BigStep => {
                 let mut full_explanation = PropositionalConjunction::default();
 

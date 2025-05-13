@@ -1,6 +1,8 @@
 pub(crate) mod big_step;
 pub(crate) mod naive;
 pub(crate) mod pointwise;
+pub(crate) mod extended;
+
 use std::fmt::Display;
 use std::rc::Rc;
 
