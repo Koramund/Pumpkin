@@ -1,5 +1,4 @@
 use pumpkin_solver::variables::AffineView;
-use pumpkin_solver::variables::DomainId;
 use pumpkin_solver::variables::Literal;
 
 use crate::variables::BoolExpression;
@@ -14,7 +13,7 @@ pub trait PythonConstraintArg {
 }
 
 impl PythonConstraintArg for IntExpression {
-    type Output = AffineView<DomainId>;
+    type Output = AffineView;
 
     fn to_solver_constraint_argument(self, variable_map: &VariableMap) -> Self::Output {
         self.to_affine_view(variable_map)

@@ -4,7 +4,7 @@ use crate::propagators::ReifiedPropagator;
 use crate::variables::{AffineView, DomainId};
 
 
-type Affine = AffineView<DomainId>;
+type Affine = AffineView;
 type ReifiedLE = ReifiedPropagator<LessOrEqualMinimumPropagator<Affine, Affine>>;
 type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine>>;
 

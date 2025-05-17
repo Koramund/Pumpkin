@@ -18,14 +18,14 @@ use crate::math::num_ext::NumExt;
 /// Models the constraint `y = ax + b`, by expressing the domain of `y` as a transformation of the
 /// domain of `x`.
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
-pub struct AffineView<Inner> {
-    inner: Inner,
+pub struct AffineView {
+    inner: DomainId,
     scale: i32,
     offset: i32,
 }
 
-impl<Inner> AffineView<Inner> {
-    pub fn new(inner: Inner, scale: i32, offset: i32) -> Self {
+impl AffineView {
+    pub fn new(inner: DomainId, scale: i32, offset: i32) -> Self {
         AffineView {
             inner,
             scale,
@@ -49,11 +49,8 @@ impl<Inner> AffineView<Inner> {
     }
 }
 
-impl<View> IntegerVariable for AffineView<View>
-where
-    View: IntegerVariable,
+impl IntegerVariable for AffineView
 {
-    type AffineView = Self;
 
     fn get_id(&self) -> u32 {
         self.inner.get_id()
@@ -220,25 +217,24 @@ where
     }
 }
 
-impl<View> TransformableVariable<AffineView<View>> for AffineView<View>
-where
-    View: IntegerVariable,
+impl TransformableVariable for AffineView
+
 {
-    fn scaled(&self, scale: i32) -> AffineView<View> {
+    fn scaled(&self, scale: i32) -> AffineView {
         let mut result = self.clone();
         result.scale *= scale;
         result.offset *= scale;
         result
     }
 
-    fn offset(&self, offset: i32) -> AffineView<View> {
+    fn offset(&self, offset: i32) -> AffineView {
         let mut result = self.clone();
         result.offset += offset;
         result
     }
 }
 
-impl<Var: std::fmt::Debug> std::fmt::Debug for AffineView<Var> {
+impl std::fmt::Debug for AffineView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.scale == -1 {
             write!(f, "-")?;
@@ -258,8 +254,8 @@ impl<Var: std::fmt::Debug> std::fmt::Debug for AffineView<Var> {
     }
 }
 
-impl<Var: PredicateConstructor<Value = i32>> PredicateConstructor for AffineView<Var> {
-    type Value = Var::Value;
+impl PredicateConstructor for AffineView {
+    type Value = i32;
 
     fn lower_bound_predicate(&self, bound: Self::Value) -> Predicate {
         if self.scale < 0 {
@@ -300,7 +296,7 @@ impl<Var: PredicateConstructor<Value = i32>> PredicateConstructor for AffineView
     }
 }
 
-impl From<DomainId> for AffineView<DomainId> {
+impl From<DomainId> for AffineView {
     fn from(value: DomainId) -> Self {
         AffineView::new(value, 1, 0)
     }

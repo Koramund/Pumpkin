@@ -66,7 +66,7 @@ impl Constraint for BooleanLessThanOrEqual {
 }
 
 impl BooleanLessThanOrEqual {
-    fn create_domains(&self) -> Vec<AffineView<DomainId>> {
+    fn create_domains(&self) -> Vec<AffineView> {
         self.bools
             .iter()
             .enumerate()
@@ -105,7 +105,7 @@ impl Constraint for BooleanEqual {
 }
 
 impl BooleanEqual {
-    fn create_domains(&self) -> Vec<AffineView<DomainId>> {
+    fn create_domains(&self) -> Vec<AffineView> {
         self.bools
             .iter()
             .enumerate()
