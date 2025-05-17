@@ -17,6 +17,7 @@ use pointwise::create_pointwise_predicate_propagating_task_upper_bound_propagati
 use crate::engine::propagation::PropagationContext;
 use crate::predicates::Predicate;
 use crate::predicates::PropositionalConjunction;
+use crate::propagators::cumulative::time_table::explanations::extended::{create_extended_predicate_propagating_task_lower_bound_propagation, create_extended_predicate_propagating_task_upper_bound_propagation};
 use crate::propagators::ResourceProfile;
 use crate::propagators::Task;
 use crate::variables::IntegerVariable;
@@ -58,6 +59,8 @@ pub enum CumulativeExplanationType {
     /// [`CumulativeExplanationType`]) and select the middle point in the profile as the point used
     /// for the explanation.
     Pointwise,
+    /// Utilizes extended resolution baby!!!!
+    Extended,
 }
 
 impl Display for CumulativeExplanationType {
@@ -66,6 +69,7 @@ impl Display for CumulativeExplanationType {
             CumulativeExplanationType::Naive => write!(f, "naive"),
             CumulativeExplanationType::BigStep => write!(f, "big-step"),
             CumulativeExplanationType::Pointwise => write!(f, "pointwise"),
+            CumulativeExplanationType::Extended => write!(f, "extended"),
         }
     }
 }
@@ -89,6 +93,9 @@ pub(crate) fn create_predicate_propagating_task_lower_bound_propagation<
         }
         CumulativeExplanationType::Pointwise => {
             create_pointwise_predicate_propagating_task_lower_bound_propagation(task, time_point)
+        }
+        CumulativeExplanationType::Extended => {
+            create_extended_predicate_propagating_task_lower_bound_propagation(task, time_point)
         }
     }
 }
@@ -133,6 +140,9 @@ pub(crate) fn create_predicate_propagating_task_upper_bound_propagation<
         }
         CumulativeExplanationType::Pointwise => {
             create_pointwise_predicate_propagating_task_upper_bound_propagation(task, time_point)
+        }
+        CumulativeExplanationType::Extended => {
+            create_extended_predicate_propagating_task_upper_bound_propagation(task, time_point)
         }
     }
 }

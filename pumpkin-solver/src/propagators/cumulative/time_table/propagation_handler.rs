@@ -3,7 +3,7 @@ use std::cmp::max;
 use std::cmp::min;
 use std::rc::Rc;
 
-use super::explanations::add_propagating_task_predicate_lower_bound;
+use super::explanations::{add_propagating_task_predicate_lower_bound, extended};
 use super::explanations::add_propagating_task_predicate_upper_bound;
 use super::explanations::big_step::create_big_step_conflict_explanation;
 use super::explanations::big_step::create_big_step_propagation_explanation;
@@ -20,6 +20,7 @@ use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::ReadDomains;
 use crate::engine::EmptyDomain;
 use crate::predicates::PropositionalConjunction;
+use crate::propagators::cumulative::time_table::explanations::extended::create_extended_conflict_explanation;
 use crate::propagators::cumulative::time_table::explanations::pointwise;
 use crate::propagators::ResourceProfile;
 use crate::propagators::Task;
@@ -84,6 +85,9 @@ impl CumulativePropagationHandler {
                         CumulativeExplanationType::Pointwise => {
                             unreachable!("At the moment, we do not store the profile explanation for the pointwise explanation since it consists of multiple explanations")
                         }
+                        CumulativeExplanationType::Extended => {
+                            unreachable!("just is not reachable.")
+                        }
                     };
 
                     full_explanation =
@@ -111,6 +115,13 @@ impl CumulativePropagationHandler {
             }
             CumulativeExplanationType::Pointwise => {
                 pointwise::propagate_lower_bounds_with_pointwise_explanations(
+                    context,
+                    profiles,
+                    propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_lower_bounds_with_extended_explanations(
                     context,
                     profiles,
                     propagating_task,
@@ -147,6 +158,9 @@ impl CumulativePropagationHandler {
                         CumulativeExplanationType::Pointwise => {
                             unreachable!("At the moment, we do not store the profile explanation for the pointwise explanation since it consists of multiple explanations")
                         }
+                        CumulativeExplanationType::Extended => {
+                            unreachable!("just is not reachable.")
+                        }
                     };
 
                     full_explanation =
@@ -173,6 +187,13 @@ impl CumulativePropagationHandler {
             }
             CumulativeExplanationType::Pointwise => {
                 pointwise::propagate_upper_bounds_with_pointwise_explanations(
+                    context,
+                    profiles,
+                    propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_upper_bounds_with_extended_explanations(
                     context,
                     profiles,
                     propagating_task,
@@ -223,6 +244,13 @@ impl CumulativePropagationHandler {
                     propagating_task,
                 )
             }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_lower_bounds_with_extended_explanations(
+                    context,
+                    &[profile],
+                    propagating_task,
+                )
+            }
         }
     }
 
@@ -268,6 +296,13 @@ impl CumulativePropagationHandler {
             }
             CumulativeExplanationType::Pointwise => {
                 pointwise::propagate_upper_bounds_with_pointwise_explanations(
+                    context,
+                    &[profile],
+                    propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_upper_bounds_with_extended_explanations(
                     context,
                     &[profile],
                     propagating_task,
@@ -358,6 +393,9 @@ impl CumulativePropagationHandler {
                     pumpkin_assert_extreme!(check_explanation(&explanation, context.as_readonly()));
                     context.remove(&propagating_task.start_variable, time_point, explanation)?;
                 }
+                CumulativeExplanationType::Extended => {
+                    unreachable!("CumulativeExplanationType::Extended does not support holes in the domain");
+                }
             }
         }
 
@@ -391,6 +429,9 @@ impl CumulativePropagationHandler {
                     CumulativeExplanationType::Pointwise => {
                         unreachable!("At the moment, we do not store the profile explanation for the pointwise explanation since it consists of multiple explanations")
                     },
+                    CumulativeExplanationType::Extended => {
+                        unreachable!("I have no clue what this does yet so if we hit this I probably missed an implementation detail")
+                    }
                 }
             )
         }))
@@ -416,6 +457,9 @@ where
         }
         CumulativeExplanationType::Pointwise => {
             create_pointwise_conflict_explanation(conflict_profile)
+        }
+        CumulativeExplanationType::Extended => {
+            create_extended_conflict_explanation(conflict_profile)
         }
     }
 }

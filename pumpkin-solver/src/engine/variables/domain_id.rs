@@ -25,6 +25,9 @@ impl DomainId {
 }
 
 impl IntegerVariable for DomainId {
+    fn get_id(&self) -> u32 {
+        self.id
+    }
     type AffineView = AffineView<Self>;
 
     fn lower_bound(&self, assignment: &Assignments) -> i32 {
