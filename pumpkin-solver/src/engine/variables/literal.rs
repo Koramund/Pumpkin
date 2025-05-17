@@ -60,6 +60,10 @@ impl Not for Literal {
 impl IntegerVariable for Literal {
     type AffineView = AffineView<Self>;
 
+    fn get_id(&self) -> u32 {
+        self.integer_variable.get_id()
+    }
+    
     /// Returns the lower bound represented as a 0-1 value.
     /// Literals that evaluate to true have a lower bound of 1.
     /// Literal that evaluate to false have a lower bound of 0.

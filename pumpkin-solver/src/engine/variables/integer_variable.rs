@@ -17,6 +17,8 @@ pub trait IntegerVariable:
 {
     type AffineView: IntegerVariable;
 
+    fn get_id(&self) -> u32;
+    
     /// Get the lower bound of the variable.
     fn lower_bound(&self, assignment: &Assignments) -> i32;
 
