@@ -17,7 +17,7 @@ use crate::engine::Watchers;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Literal {
-    integer_variable: AffineView<DomainId>,
+    integer_variable: AffineView,
 }
 
 impl Literal {
@@ -34,7 +34,7 @@ impl Literal {
         }
     }
 
-    pub fn get_integer_variable(&self) -> AffineView<DomainId> {
+    pub fn get_integer_variable(&self) -> AffineView {
         self.integer_variable
     }
 
@@ -57,8 +57,9 @@ impl Not for Literal {
     }
 }
 
+
+
 impl IntegerVariable for Literal {
-    type AffineView = AffineView<Self>;
 
     fn get_id(&self) -> u32 {
         self.integer_variable.get_id()
@@ -154,12 +155,12 @@ impl IntegerVariable for Literal {
         self.integer_variable.watch_all(watchers, events)
     }
 
-    fn unpack_event(&self, event: OpaqueDomainEvent) -> IntDomainEvent {
-        self.integer_variable.unpack_event(event)
-    }
-
     fn watch_all_backtrack(&self, watchers: &mut Watchers<'_>, events: EnumSet<IntDomainEvent>) {
         self.integer_variable.watch_all_backtrack(watchers, events)
+    }
+
+    fn unpack_event(&self, event: OpaqueDomainEvent) -> IntDomainEvent {
+        self.integer_variable.unpack_event(event)
     }
 }
 
@@ -183,12 +184,14 @@ impl PredicateConstructor for Literal {
     }
 }
 
-impl TransformableVariable<AffineView<Literal>> for Literal {
-    fn scaled(&self, scale: i32) -> AffineView<Literal> {
-        AffineView::new(*self, scale, 0)
+impl TransformableVariable for Literal {
+    fn scaled(&self, scale: i32) -> AffineView {
+        
+        self.integer_variable.scaled(scale)
     }
 
-    fn offset(&self, offset: i32) -> AffineView<Literal> {
-        AffineView::new(*self, 1, offset)
+    fn offset(&self, offset: i32) -> AffineView {
+        
+        self.integer_variable.offset(offset)
     }
 }

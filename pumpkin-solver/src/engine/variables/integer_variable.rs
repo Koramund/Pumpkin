@@ -13,9 +13,8 @@ use crate::engine::Watchers;
 /// lower-bound ([`IntegerVariable::lower_bound`]) or adjusting the bounds
 /// ([`IntegerVariable::set_lower_bound`]).
 pub trait IntegerVariable:
-    Clone + PredicateConstructor<Value = i32> + TransformableVariable<Self::AffineView>
+    Clone + PredicateConstructor<Value = i32> + TransformableVariable
 {
-    type AffineView: IntegerVariable;
 
     fn get_id(&self) -> u32;
     

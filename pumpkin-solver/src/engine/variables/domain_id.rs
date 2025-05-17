@@ -28,7 +28,6 @@ impl IntegerVariable for DomainId {
     fn get_id(&self) -> u32 {
         self.id
     }
-    type AffineView = AffineView<Self>;
 
     fn lower_bound(&self, assignment: &Assignments) -> i32 {
         assignment.get_lower_bound(*self)
@@ -111,12 +110,12 @@ impl IntegerVariable for DomainId {
     }
 }
 
-impl TransformableVariable<AffineView<DomainId>> for DomainId {
-    fn scaled(&self, scale: i32) -> AffineView<DomainId> {
+impl TransformableVariable for DomainId {
+    fn scaled(&self, scale: i32) -> AffineView {
         AffineView::new(*self, scale, 0)
     }
 
-    fn offset(&self, offset: i32) -> AffineView<DomainId> {
+    fn offset(&self, offset: i32) -> AffineView {
         AffineView::new(*self, 1, offset)
     }
 }

@@ -3,7 +3,7 @@ use std::num::NonZero;
 use crate::constraints::Constraint;
 use crate::constraints::NegatableConstraint;
 use crate::propagators::linear_less_or_equal::LinearLessOrEqualPropagator;
-use crate::variables::IntegerVariable;
+use crate::variables::{AffineView, IntegerVariable};
 use crate::ConstraintOperationError;
 use crate::Solver;
 
@@ -69,7 +69,7 @@ impl<Var: IntegerVariable + 'static> Constraint for Inequality<Var> {
 }
 
 impl<Var: IntegerVariable + 'static> NegatableConstraint for Inequality<Var> {
-    type NegatedConstraint = Inequality<Var::AffineView>;
+    type NegatedConstraint = Inequality<AffineView>;
 
     fn negation(&self) -> Self::NegatedConstraint {
         Inequality {
