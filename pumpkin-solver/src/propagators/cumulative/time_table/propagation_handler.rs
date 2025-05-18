@@ -202,6 +202,7 @@ impl CumulativePropagationHandler {
                     context,
                     profiles,
                     propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -314,6 +315,7 @@ impl CumulativePropagationHandler {
                     context,
                     &[profile],
                     propagating_task,
+                    self.extended_type,
                 )
             }
         }
