@@ -13,7 +13,7 @@ use naive::create_naive_predicate_propagating_task_lower_bound_propagation;
 use naive::create_naive_predicate_propagating_task_upper_bound_propagation;
 use pointwise::create_pointwise_predicate_propagating_task_lower_bound_propagation;
 use pointwise::create_pointwise_predicate_propagating_task_upper_bound_propagation;
-
+use crate::basic_types::cumulative_literal::CumulativeExtendedType;
 use crate::engine::propagation::PropagationContext;
 use crate::predicates::Predicate;
 use crate::predicates::PropositionalConjunction;
@@ -83,6 +83,7 @@ pub(crate) fn create_predicate_propagating_task_lower_bound_propagation<
     task: &Rc<Task<Var>>,
     profile: &ResourceProfile<Var>,
     time_point: Option<i32>,
+    underlying_type: CumulativeExtendedType,
 ) -> Predicate {
     match explanation_type {
         CumulativeExplanationType::Naive => {
@@ -95,7 +96,7 @@ pub(crate) fn create_predicate_propagating_task_lower_bound_propagation<
             create_pointwise_predicate_propagating_task_lower_bound_propagation(task, time_point)
         }
         CumulativeExplanationType::Extended => {
-            create_extended_predicate_propagating_task_lower_bound_propagation(task, time_point)
+            create_extended_predicate_propagating_task_lower_bound_propagation(context, task, profile, time_point, underlying_type)
         }
     }
 }
@@ -108,6 +109,7 @@ pub(crate) fn add_propagating_task_predicate_lower_bound<Var: IntegerVariable + 
     task: &Rc<Task<Var>>,
     profile: &ResourceProfile<Var>,
     time_point: Option<i32>,
+    underlying_type: CumulativeExtendedType,
 ) -> PropositionalConjunction {
     explanation.add(create_predicate_propagating_task_lower_bound_propagation(
         explanation_type,
@@ -115,6 +117,7 @@ pub(crate) fn add_propagating_task_predicate_lower_bound<Var: IntegerVariable + 
         task,
         profile,
         time_point,
+        underlying_type,
     ));
     explanation
 }
@@ -128,6 +131,7 @@ pub(crate) fn create_predicate_propagating_task_upper_bound_propagation<
     task: &Rc<Task<Var>>,
     profile: &ResourceProfile<Var>,
     time_point: Option<i32>,
+    underlying_type: CumulativeExtendedType,
 ) -> Predicate {
     match explanation_type {
         CumulativeExplanationType::Naive => {
@@ -142,7 +146,7 @@ pub(crate) fn create_predicate_propagating_task_upper_bound_propagation<
             create_pointwise_predicate_propagating_task_upper_bound_propagation(task, time_point)
         }
         CumulativeExplanationType::Extended => {
-            create_extended_predicate_propagating_task_upper_bound_propagation(task, time_point)
+            create_extended_predicate_propagating_task_upper_bound_propagation(context, task, profile, time_point, underlying_type)
         }
     }
 }
@@ -155,6 +159,7 @@ pub(crate) fn add_propagating_task_predicate_upper_bound<Var: IntegerVariable + 
     task: &Rc<Task<Var>>,
     profile: &ResourceProfile<Var>,
     time_point: Option<i32>,
+    underlying_type: CumulativeExtendedType,
 ) -> PropositionalConjunction {
     explanation.add(create_predicate_propagating_task_upper_bound_propagation(
         explanation_type,
@@ -162,6 +167,7 @@ pub(crate) fn add_propagating_task_predicate_upper_bound<Var: IntegerVariable + 
         task,
         profile,
         time_point,
+        underlying_type,
     ));
     explanation
 }

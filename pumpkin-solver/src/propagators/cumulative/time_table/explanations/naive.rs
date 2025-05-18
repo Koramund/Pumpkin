@@ -1,4 +1,4 @@
-use std::rc::Rc;
+ use std::rc::Rc;
 
 use crate::engine::propagation::PropagationContext;
 use crate::engine::propagation::ReadDomains;
@@ -82,6 +82,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::basic_types::cumulative_literal::CumulativeExtendedType;
     use crate::options::CumulativeExplanationType;
     use crate::predicate;
     use crate::predicates::PropositionalConjunction;
@@ -89,7 +90,7 @@ mod tests {
 
     #[test]
     fn test_naive_explanation_lower_bound() {
-        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive);
+        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive, CumulativeExtendedType::default());
         let (reason, x, y) = propagation_handler.set_up_example_lower_bound();
         let expected_reason: PropositionalConjunction = vec![
             predicate!(x >= 11),
@@ -102,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_naive_explanation_lower_bound_sequence() {
-        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive);
+        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive, CumulativeExtendedType::default());
         let (reason, x, y, z) = propagation_handler.set_up_example_sequence_lower_bound();
         let expected_reason: PropositionalConjunction = vec![
             predicate!(x >= 11),
@@ -117,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_naive_explanation_upper_bound() {
-        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive);
+        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive, CumulativeExtendedType::default());
         let (reason, x, y) = propagation_handler.set_up_example_upper_bound();
         let expected_reason: PropositionalConjunction = vec![
             predicate!(x <= 16),
@@ -130,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_naive_explanation_upper_bound_sequence() {
-        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive);
+        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive, CumulativeExtendedType::default());
         let (reason, x, y, z) = propagation_handler.set_up_example_sequence_upper_bound();
         let expected_reason: PropositionalConjunction = vec![
             predicate!(x <= 16),
@@ -145,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_conflict_naive() {
-        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive);
+        let mut propagation_handler = TestPropagationHandler::new(CumulativeExplanationType::Naive, CumulativeExtendedType::default());
         let (reason, y) = propagation_handler.set_up_conflict_example();
         let expected_reason: PropositionalConjunction =
             vec![predicate!(y >= 15), predicate!(y <= 16)].into();

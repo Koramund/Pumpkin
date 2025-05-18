@@ -2,7 +2,7 @@ use std::cell::OnceCell;
 use std::cmp::max;
 use std::cmp::min;
 use std::rc::Rc;
-
+use crate::basic_types::cumulative_literal::CumulativeExtendedType;
 use super::explanations::{add_propagating_task_predicate_lower_bound, extended};
 use super::explanations::add_propagating_task_predicate_upper_bound;
 use super::explanations::big_step::create_big_step_conflict_explanation;
@@ -37,6 +37,7 @@ pub(crate) struct CumulativePropagationHandler {
     /// explanation and re-use it. Note that this will only be used for
     /// [`CumulativeExplanationType::Naive`] and [`CumulativeExplanationType::BigStep`].
     stored_profile_explanation: OnceCell<Rc<PropositionalConjunction>>,
+    extended_type: CumulativeExtendedType,
 }
 
 fn check_explanation(explanation: &PropositionalConjunction, context: PropagationContext) -> bool {
@@ -50,10 +51,11 @@ fn check_explanation(explanation: &PropositionalConjunction, context: Propagatio
 }
 
 impl CumulativePropagationHandler {
-    pub(crate) fn new(explanation_type: CumulativeExplanationType) -> Self {
+    pub(crate) fn new(explanation_type: CumulativeExplanationType, extended_type: CumulativeExtendedType) -> Self {
         Self {
             explanation_type,
             stored_profile_explanation: OnceCell::new(),
+            extended_type,
         }
     }
 
@@ -101,6 +103,7 @@ impl CumulativePropagationHandler {
                     propagating_task,
                     profiles[0],
                     None,
+                    self.extended_type,
                 );
 
                 pumpkin_assert_extreme!(check_explanation(
@@ -125,6 +128,7 @@ impl CumulativePropagationHandler {
                     context,
                     profiles,
                     propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -174,6 +178,7 @@ impl CumulativePropagationHandler {
                     propagating_task,
                     profiles[profiles.len() - 1],
                     None,
+                    self.extended_type,
                 );
                 pumpkin_assert_extreme!(check_explanation(
                     &full_explanation,
@@ -230,6 +235,7 @@ impl CumulativePropagationHandler {
                         propagating_task,
                         profile,
                         None,
+                        self.extended_type,
                     );
                 pumpkin_assert_extreme!(check_explanation(&explanation, context.as_readonly()));
 
@@ -249,6 +255,7 @@ impl CumulativePropagationHandler {
                     context,
                     &[profile],
                     propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -283,6 +290,7 @@ impl CumulativePropagationHandler {
                         propagating_task,
                         profile,
                         None,
+                        self.extended_type,
                     );
                 pumpkin_assert_extreme!(check_explanation(&explanation, context.as_readonly()));
 
@@ -444,6 +452,7 @@ pub(crate) fn create_conflict_explanation<Var, Context: ReadDomains + Copy>(
     context: Context,
     conflict_profile: &ResourceProfile<Var>,
     explanation_type: CumulativeExplanationType,
+    underlying_type: CumulativeExtendedType,
 ) -> PropositionalConjunction
 where
     Var: IntegerVariable + 'static,
@@ -459,7 +468,7 @@ where
             create_pointwise_conflict_explanation(conflict_profile)
         }
         CumulativeExplanationType::Extended => {
-            create_extended_conflict_explanation(conflict_profile)
+            create_extended_conflict_explanation(context, conflict_profile, underlying_type)
         }
     }
 }
@@ -467,7 +476,7 @@ where
 #[cfg(test)]
 pub(crate) mod test_propagation_handler {
     use std::rc::Rc;
-
+    use crate::basic_types::cumulative_literal::CumulativeExtendedType;
     use super::create_conflict_explanation;
     use super::CumulativeExplanationType;
     use super::CumulativePropagationHandler;
@@ -497,8 +506,8 @@ pub(crate) mod test_propagation_handler {
     }
 
     impl TestPropagationHandler {
-        pub(crate) fn new(explanation_type: CumulativeExplanationType) -> Self {
-            let propagation_handler = CumulativePropagationHandler::new(explanation_type);
+        pub(crate) fn new(explanation_type: CumulativeExplanationType, extended_type: CumulativeExtendedType) -> Self {
+            let propagation_handler = CumulativePropagationHandler::new(explanation_type, extended_type);
 
             let reason_store = ReasonStore::default();
             let assignments = Assignments::default();
@@ -532,6 +541,7 @@ pub(crate) mod test_propagation_handler {
                 PropagationContext::new(&self.assignments),
                 &profile,
                 self.propagation_handler.explanation_type,
+                self.propagation_handler.extended_type,
             );
 
             (reason, y)
