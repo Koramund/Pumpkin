@@ -142,6 +142,7 @@ impl<Var: IntegerVariable + 'static, const SYNCHRONISE: bool>
                                 context,
                                 &conflict_tasks,
                                 self.parameters.options.explanation_type,
+                                self.parameters.options.extended_type,
                             )
                             .into()));
                         }
@@ -301,6 +302,7 @@ impl<Var: IntegerVariable + 'static, const SYNCHRONISE: bool>
                         context.as_readonly(),
                         conflicting_profile,
                         self.parameters.options.explanation_type,
+                        self.parameters.options.extended_type,
                     )
                     .into());
                 }

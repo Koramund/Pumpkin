@@ -41,6 +41,7 @@ use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use result::PumpkinError;
 use result::PumpkinResult;
+use pumpkin_solver::basic_types::cumulative_literal::CumulativeExtendedType;
 
 use crate::flatzinc::FlatZincOptions;
 use crate::maxsat::wcnf_problem;
@@ -332,7 +333,14 @@ struct Args {
     /// Currently, the solver only supports variations on time-tabling methods.
     #[arg(long, value_enum, default_value_t)]
     cumulative_propagation_method: CumulativePropagationMethod,
-
+    
+    /// Determines the type of propagator which is used by the cumulative propagator(s) to
+    /// propagate the constraint when extended resolution is used.
+    ///
+    /// Currently, the solver only supports variations on time-tabling methods.
+    #[arg(long, value_enum, default_value_t)]
+    cumulative_extended_method: CumulativeExtendedType,
+    
     /// Determines whether a sequence of profiles is generated when explaining a propagation for
     /// the cumulative constraint.
     ///
@@ -549,6 +557,7 @@ fn run() -> PumpkinResult<()> {
                 cumulative_options: CumulativeOptions::new(
                     args.cumulative_allow_holes,
                     args.cumulative_explanation_type,
+                    args.cumulative_extended_method,
                     args.cumulative_generate_sequence,
                     args.cumulative_propagation_method,
                     args.cumulative_incremental_backtracking,

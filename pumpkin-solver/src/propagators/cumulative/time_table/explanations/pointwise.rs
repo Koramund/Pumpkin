@@ -1,5 +1,5 @@
 use std::rc::Rc;
-
+use crate::basic_types::cumulative_literal::CumulativeExtendedType;
 use crate::engine::propagation::contexts::propagation_context::HasAssignments;
 use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::ReadDomains;
@@ -66,6 +66,7 @@ pub(crate) fn propagate_lower_bounds_with_pointwise_explanations<Var: IntegerVar
                 propagating_task,
                 profiles[current_profile_index],
                 Some(time_point),
+                CumulativeExtendedType::default(),
             );
             pumpkin_assert_extreme!(
                 explanation
@@ -167,13 +168,13 @@ pub(crate) fn propagate_upper_bounds_with_pointwise_explanations<Var: IntegerVar
             let explanation = add_propagating_task_predicate_upper_bound(
                 create_pointwise_propagation_explanation(
                     time_point,
-                    profiles[current_profile_index],
-                ),
+                    profiles[current_profile_index]),
                 CumulativeExplanationType::Pointwise,
                 context.as_readonly(),
                 propagating_task,
                 profiles[current_profile_index],
                 Some(time_point),
+                CumulativeExtendedType::default(),
             );
             pumpkin_assert_extreme!(
                 explanation
@@ -305,6 +306,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::basic_types::cumulative_literal::CumulativeExtendedType;
     use crate::options::CumulativeExplanationType;
     use crate::predicate;
     use crate::predicates::PropositionalConjunction;
@@ -313,7 +315,7 @@ mod tests {
     #[test]
     fn test_pointwise_explanation_lower_bound() {
         let mut propagation_handler =
-            TestPropagationHandler::new(CumulativeExplanationType::Pointwise);
+            TestPropagationHandler::new(CumulativeExplanationType::Pointwise, CumulativeExtendedType::default());
         let (reason_last_propagation, x, y) = propagation_handler.set_up_example_lower_bound();
         let expected_reason: PropositionalConjunction = vec![
             predicate!(x >= 13),
@@ -336,7 +338,7 @@ mod tests {
     #[test]
     fn test_pointwise_explanation_lower_bound_sequence() {
         let mut propagation_handler =
-            TestPropagationHandler::new(CumulativeExplanationType::Pointwise);
+            TestPropagationHandler::new(CumulativeExplanationType::Pointwise, CumulativeExtendedType::default());
         let (reason_last_propagation, x, y, z) =
             propagation_handler.set_up_example_sequence_lower_bound();
         let expected_reason: PropositionalConjunction = vec![
@@ -360,7 +362,7 @@ mod tests {
     #[test]
     fn test_pointwise_explanation_upper_bound() {
         let mut propagation_handler =
-            TestPropagationHandler::new(CumulativeExplanationType::Pointwise);
+            TestPropagationHandler::new(CumulativeExplanationType::Pointwise, CumulativeExtendedType::default());
         let (reason_last_propagation, x, y) = propagation_handler.set_up_example_upper_bound();
         let expected_reason: PropositionalConjunction = vec![
             predicate!(x <= 16),
@@ -374,7 +376,7 @@ mod tests {
     #[test]
     fn test_pointwise_explanation_upper_bound_sequence() {
         let mut propagation_handler =
-            TestPropagationHandler::new(CumulativeExplanationType::Pointwise);
+            TestPropagationHandler::new(CumulativeExplanationType::Pointwise, CumulativeExtendedType::default());
         let (reason_last_propagation, x, y, z) =
             propagation_handler.set_up_example_sequence_upper_bound();
         let expected_reason: PropositionalConjunction =
@@ -399,7 +401,7 @@ mod tests {
     #[test]
     fn test_conflict_point_wise() {
         let mut propagation_handler =
-            TestPropagationHandler::new(CumulativeExplanationType::Pointwise);
+            TestPropagationHandler::new(CumulativeExplanationType::Pointwise, CumulativeExtendedType::default());
         let (reason, y) = propagation_handler.set_up_conflict_example();
         let expected_reason: PropositionalConjunction =
             vec![predicate!(y >= 13), predicate!(y <= 16)].into();

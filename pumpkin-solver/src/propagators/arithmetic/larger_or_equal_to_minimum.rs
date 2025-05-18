@@ -26,7 +26,7 @@ pub(crate) struct LargerOrEqualMinimumPropagator<Lhs, Var> {
     restricting_index: Box<TrailedInt>,
 }
 
-impl<Lhs: IntegerVariable, Var: IntegerVariable> LargerOrEqualMinimumPropagator<Lhs, Var> {
+impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqualMinimumPropagator<Lhs, Var> {
     pub(crate) fn new(lhs: Lhs, array: Box<[Var]>, ) -> Self {
         LargerOrEqualMinimumPropagator {
             lhs,
@@ -40,6 +40,20 @@ impl<Lhs: IntegerVariable, Var: IntegerVariable> LargerOrEqualMinimumPropagator<
         let restrictor = context.value(*self.restricting_index) as usize;
         conjunction!([self.array[restrictor] >= context.lower_bound(&self.array[restrictor])] & [self.lhs <= context.upper_bound(&self.lhs)])
     }
+
+
+    pub(crate) fn propagate_directly(&mut self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        if let Some(conjunction) = self.detect_inconsistency(context.as_stateful_readonly()) {
+            return Err(conjunction.into());
+        }
+        // The constraint propagated is that the lower bound of LHS is incremented to at least the lower bound of every variable in "array".
+        if context.lower_bound(&self.lhs) < context.value(*self.lower_bound_right_hand_side) as i32 {
+            let restrictor = context.value(*self.restricting_index) as usize;
+            context.set_lower_bound(&self.lhs, context.value(*self.lower_bound_right_hand_side) as i32, conjunction!([self.array[restrictor] >= context.value(*self.lower_bound_right_hand_side) as i32]))?
+        }
+        Ok(())
+    }
+    
 }
 
 impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> Propagator
@@ -49,6 +63,9 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &mut self,
         context: &mut PropagatorInitialisationContext,
     ) -> Result<(), PropositionalConjunction> {
+        // TODO note that initiliasation of these does actually not happen at root.
+        // Therefore the datastructure may be out of sync once we backtrack past their original init point.
+        // An easy fix is to just change these to the basic propagate_debug_from_scratch.
         self.array.iter().enumerate().for_each(|(i, x_i)| {
             let _ = context.register(
                 x_i.clone(),
@@ -100,15 +117,8 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
     }
 
     fn propagate(&mut self, mut context: PropagationContextMut) -> PropagationStatusCP {
-        if let Some(conjunction) = self.detect_inconsistency(context.as_stateful_readonly()) {
-            return Err(conjunction.into());
-        }
-        // The constraint propagated is that the lower bound of LHS is incremented to at least the lower bound of every variable in "array".
-        if context.lower_bound(&self.lhs) < context.value(*self.lower_bound_right_hand_side) as i32 {
-            let restrictor = context.value(*self.restricting_index) as usize;
-            context.set_lower_bound(&self.lhs, context.value(*self.lower_bound_right_hand_side) as i32, conjunction!([self.array[restrictor] >= context.value(*self.lower_bound_right_hand_side) as i32]))?
-        }
-        Ok(())
+        
+        self.propagate_directly(&mut context)
     }
 
     fn notify(&mut self, mut context: StatefulPropagationContext, local_id: LocalId, event: OpaqueDomainEvent) -> EnqueueDecision {

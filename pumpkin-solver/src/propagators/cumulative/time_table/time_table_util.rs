@@ -248,7 +248,7 @@ fn propagate_single_profiles<'a, Var: IntegerVariable + 'static>(
 ) -> PropagationStatusCP {
     // We create the structure responsible for propagations and explanations
     let mut propagation_handler =
-        CumulativePropagationHandler::new(parameters.options.explanation_type);
+        CumulativePropagationHandler::new(parameters.options.explanation_type, parameters.options.extended_type);
 
     // Then we go over all of the profiles in the time-table
     'profile_loop: for profile in time_table {
@@ -331,7 +331,7 @@ fn propagate_sequence_of_profiles<'a, Var: IntegerVariable + 'static>(
 ) -> PropagationStatusCP {
     // We create the structure responsible for propagations and explanations
     let mut propagation_handler =
-        CumulativePropagationHandler::new(parameters.options.explanation_type);
+        CumulativePropagationHandler::new(parameters.options.explanation_type, parameters.options.extended_type);
 
     // We collect the time-table since we will need to index into it
     let time_table = time_table.collect::<Vec<_>>();

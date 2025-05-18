@@ -135,6 +135,7 @@ pub(crate) fn create_synchronised_conflict_explanation<Var: IntegerVariable + 's
             height: new_height,
         },
         parameters.options.explanation_type,
+        parameters.options.extended_type,
     )
     .into())
 }

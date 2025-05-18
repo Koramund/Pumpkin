@@ -1,7 +1,8 @@
 use crate::propagators::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
 use crate::propagators::less_or_equal_minimum::LessOrEqualMinimumPropagator;
 use crate::propagators::ReifiedPropagator;
-use crate::variables::{AffineView, DomainId};
+use crate::variables::AffineView;
+use clap::ValueEnum;
 
 
 type Affine = AffineView;
@@ -12,12 +13,12 @@ type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine
 /// This depends on the shift they have partaken in
 #[derive(Debug)]
 pub(crate) struct CumulativeLiteral {
-    pub prop1: ReifiedLE,
-    pub prop2: ReifiedGE
+    pub prop1: ReifiedGE,
+    pub prop2: ReifiedLE
 }
 
 impl CumulativeLiteral {
-    pub fn new(prop1: ReifiedLE, prop2: ReifiedGE) -> Self {
+    pub(crate) fn new(prop1: ReifiedGE, prop2: ReifiedLE) -> Self {
         Self { prop1, prop2 }
     }
 }
@@ -32,7 +33,16 @@ pub(crate) struct MapToLiteral {
 }
 
 impl MapToLiteral {
-    pub fn new(is_lower_bound: bool, shifted_task: u32, conflicting_tasks: Vec<u32>) -> Self {
+    pub(crate) fn new(is_lower_bound: bool, shifted_task: u32, conflicting_tasks: Vec<u32>) -> Self {
         MapToLiteral{is_lower_bound, shifted_task, conflicting_tasks}
     }
+}
+
+/// This denotes the underlying supports that will be used when creating explanations for the extended resolution.
+#[derive(Debug, PartialEq, Eq, ValueEnum, Copy, Clone, Default)]
+pub enum CumulativeExtendedType {
+    Naive,
+    BigStep,
+    #[default]
+    PointWise,
 }

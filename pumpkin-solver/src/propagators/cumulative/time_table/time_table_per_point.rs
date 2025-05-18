@@ -210,6 +210,7 @@ pub(crate) fn create_time_table_per_point_from_scratch<
                         context,
                         current_profile,
                         parameters.options.explanation_type,
+                        parameters.options.extended_type,
                     ));
                 }
             }

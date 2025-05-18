@@ -140,6 +140,12 @@ impl<'a> PropagationContextMut<'a> {
         self.reification_literal = Some(reification_literal);
     }
 
+    /// Apply a reification literal to all the explanations that are passed to the context.
+    pub(crate) fn without_reification(&mut self) {
+        self.reification_literal = None;
+    }
+    
+
     fn build_reason(&self, reason: Reason) -> StoredReason {
         match reason {
             Reason::Eager(mut conjunction) => {

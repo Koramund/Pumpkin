@@ -23,7 +23,7 @@ use crate::variables::Literal;
 /// propagated to false.
 #[derive(Clone, Debug)]
 pub(crate) struct ReifiedPropagator<WrappedPropagator> {
-    propagator: WrappedPropagator,
+    pub(crate) propagator: WrappedPropagator,
     reification_literal: Literal,
     /// An inconsistency that is identified by `propagator`.
     inconsistency: Option<PropositionalConjunction>,
@@ -88,6 +88,7 @@ impl<WrappedPropagator: Propagator> Propagator for ReifiedPropagator<WrappedProp
         // Since we cannot propagate here, we store a conflict which the wrapped propagator
         // identifies at the root, and propagate the reification literal to false in the
         // `propagate` method.
+        // TODO maybe add a check here that if the literal is already set to false that we do not care about this init issue?
         if let Err(conjunction) = self.propagator.initialise_at_root(context) {
             self.inconsistency = Some(conjunction);
         }
