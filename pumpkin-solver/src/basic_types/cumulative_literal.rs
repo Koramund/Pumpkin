@@ -33,7 +33,8 @@ pub(crate) struct MapToLiteral {
 }
 
 impl MapToLiteral {
-    pub(crate) fn new(is_lower_bound: bool, shifted_task: u32, conflicting_tasks: Vec<u32>) -> Self {
+    pub(crate) fn new(is_lower_bound: bool, shifted_task: u32, mut conflicting_tasks: Vec<u32>) -> Self {
+        conflicting_tasks.sort();
         MapToLiteral{is_lower_bound, shifted_task, conflicting_tasks}
     }
 }
