@@ -7,7 +7,7 @@ use clap::ValueEnum;
 
 type Affine = AffineView;
 type ReifiedLE = ReifiedPropagator<LessOrEqualMinimumPropagator<Affine, Affine>>;
-type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine>>;
+pub type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine>>;
 
 /// They are given separate var definitions as Var1 may not be an affineView but Var2 may be and vice versa
 /// This depends on the shift they have partaken in

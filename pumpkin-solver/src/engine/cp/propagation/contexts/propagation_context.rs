@@ -66,7 +66,7 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) semantic_minimiser: &'a mut SemanticMinimiser,
     reification_literal: Option<Literal>,
     pub(crate) watch_list_cp: &'a mut WatchListCP,
-    pub(crate) variable_names: &'a mut VariableNames,
+    pub(crate) _variable_names: &'a mut VariableNames,
     pub(crate) cumulative_literals: &'a mut Vec<CumulativeLiteral>,
 }
 
@@ -78,7 +78,7 @@ impl<'a> PropagationContextMut<'a> {
         semantic_minimiser: &'a mut SemanticMinimiser,
         propagator_id: PropagatorId,
         watch_list_cp: &'a mut WatchListCP,
-        variable_names: &'a mut VariableNames,
+        _variable_names: &'a mut VariableNames,
         cumulative_literals: &'a mut Vec<CumulativeLiteral>,
     ) -> Self {
         PropagationContextMut {
@@ -89,38 +89,11 @@ impl<'a> PropagationContextMut<'a> {
             semantic_minimiser,
             reification_literal: None,
             watch_list_cp,
-            variable_names,
+            _variable_names,
             cumulative_literals
         }
     }
 
-    pub(crate) fn create_new_literal(&mut self, name: Option<String>) -> Literal {
-        let domain_id = self.create_new_integer_variable(0, 1, name);
-        Literal::new(domain_id)
-    }
-
-    /// Create a new integer variable. Its domain will have the given lower and upper bounds.
-    pub(crate) fn create_new_integer_variable(
-        &mut self,
-        lower_bound: i32,
-        upper_bound: i32,
-        name: Option<String>,
-    ) -> DomainId {
-        assert!(
-            lower_bound <= upper_bound,
-            "Variables cannot be created in an inconsistent state"
-        );
-
-        let domain_id = self.assignments.grow(lower_bound, upper_bound);
-        self.watch_list_cp.grow();
-
-        if let Some(name) = name {
-            self.variable_names.add_integer(domain_id, name);
-        }
-
-        domain_id
-    }
-    
     pub(crate) fn as_initialisation_context(&mut self) -> PropagatorInitialisationContext {
         PropagatorInitialisationContext::new(
             &mut self.watch_list_cp,

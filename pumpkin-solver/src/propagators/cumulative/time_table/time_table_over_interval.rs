@@ -1,5 +1,5 @@
 use std::rc::Rc;
-
+use num::range;
 use super::time_table_util::propagate_based_on_timetable;
 use super::time_table_util::should_enqueue;
 use crate::basic_types::PropagationStatusCP;
@@ -20,6 +20,7 @@ use crate::propagators::util::create_tasks;
 use crate::propagators::util::register_tasks;
 use crate::propagators::util::update_bounds_task;
 use crate::propagators::ArgTask;
+use crate::propagators::cumulative::time_table::explanations::extended::FREE_LITERALS;
 use crate::propagators::CumulativeParameters;
 use crate::propagators::CumulativePropagatorOptions;
 use crate::propagators::ResourceProfile;
@@ -160,6 +161,12 @@ impl<Var: IntegerVariable + 'static> Propagator for TimeTableOverIntervalPropaga
             .initialise_bounds_and_remove_fixed(context.as_readonly(), &self.parameters);
         register_tasks(&self.parameters.tasks, context, false);
 
+        let mut literals = FREE_LITERALS.lock().unwrap();
+        if literals.len() == 0 {
+            for _ in 0..100_000 {
+                literals.push(context.create_new_literal())
+            }
+        }
         Ok(())
     }
 
