@@ -1,16 +1,15 @@
-use crate::basic_types::{Inconsistency, PropositionalConjunction};
 use crate::basic_types::PropagationStatusCP;
+use crate::basic_types::PropositionalConjunction;
+use crate::conjunction;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
 use crate::engine::propagation::contexts::{ManipulateStatefulIntegers, StatefulPropagationContext};
-use crate::engine::propagation::PropagationContextMut;
+use crate::engine::propagation::{EnqueueDecision, PropagationContextMut};
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
-use crate::engine::propagation::{EnqueueDecision, LocalId};
+use crate::engine::propagation::LocalId;
 use crate::engine::variables::IntegerVariable;
-use crate::engine::{IntDomainEvent, TrailedInt};
-use crate::conjunction;
 
 //TODO still need to run this with the highest level of assertions.
 
@@ -19,11 +18,6 @@ use crate::conjunction;
 pub(crate) struct LargerOrEqualMinimumPropagator<Lhs, Var> {
     lhs: Lhs,
     array: Box<[Var]>,
-
-    /// the current minimum value of the array
-    lower_bound_right_hand_side: Box<TrailedInt>,
-    /// The most restricting variable.
-    restricting_index: Box<TrailedInt>,
 }
 
 impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqualMinimumPropagator<Lhs, Var> {
@@ -31,29 +25,20 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
         LargerOrEqualMinimumPropagator {
             lhs,
             array,
-            lower_bound_right_hand_side: Box::from(TrailedInt::default()),
-            restricting_index: Box::from(TrailedInt::default())
         }
     }
 
-    fn create_conflict_reason(&self, context: StatefulPropagationContext) -> PropositionalConjunction {
-        let restrictor = context.value(*self.restricting_index) as usize;
-        conjunction!([self.array[restrictor] >= context.lower_bound(&self.array[restrictor])] & [self.lhs <= context.upper_bound(&self.lhs)])
-    }
-
-
-    pub(crate) fn propagate_directly(&mut self, context: &mut PropagationContextMut) -> PropagationStatusCP {
-        if let Some(conjunction) = self.detect_inconsistency(context.as_stateful_readonly()) {
-            return Err(conjunction.into());
-        }
-        // The constraint propagated is that the lower bound of LHS is incremented to at least the lower bound of every variable in "array".
-        if context.lower_bound(&self.lhs) < context.value(*self.lower_bound_right_hand_side) as i32 {
-            let restrictor = context.value(*self.restricting_index) as usize;
-            context.set_lower_bound(&self.lhs, context.value(*self.lower_bound_right_hand_side) as i32, conjunction!([self.array[restrictor] >= context.value(*self.lower_bound_right_hand_side) as i32]))?
+    pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+        let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
+        dbg!(self.array.iter().map(|x| context.lower_bound(x)).collect::<Vec<_>>());
+        if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
+            context.set_lower_bound(
+                &self.lhs,
+                context.lower_bound(restrictor),
+                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
         }
         Ok(())
     }
-    
 }
 
 impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> Propagator
@@ -63,9 +48,6 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &mut self,
         context: &mut PropagatorInitialisationContext,
     ) -> Result<(), PropositionalConjunction> {
-        // TODO note that initiliasation of these does actually not happen at root.
-        // Therefore the datastructure may be out of sync once we backtrack past their original init point.
-        // An easy fix is to just change these to the basic propagate_debug_from_scratch.
         self.array.iter().enumerate().for_each(|(i, x_i)| {
             let _ = context.register(
                 x_i.clone(),
@@ -79,12 +61,7 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
             DomainEvents::UPPER_BOUND,
             LocalId::from(self.array.len() as u32),
         );
-
-        let (index, restrictor) = self.array.iter().enumerate().min_by_key(|(_, x)| context.lower_bound(*x)).unwrap().clone();
-
-        self.lower_bound_right_hand_side = Box::from(context.new_stateful_integer(context.lower_bound(restrictor) as i64));
-        self.restricting_index = Box::from(context.new_stateful_integer(index as i64));
-
+        
         match self.detect_inconsistency(context.as_stateful_readonly()) {
             None => {Ok(())}
             Some(conflict) => {Err(PropositionalConjunction::from(conflict))}
@@ -99,71 +76,11 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &self,
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
-        // TODO why does this not have to implement detect_inconsistency?
-        let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
-        if context.lower_bound(restrictor) > context.upper_bound(&self.lhs) {
-            return Err(Inconsistency::Conflict(conjunction!(
-                [restrictor >= context.lower_bound(restrictor)] &
-                [self.lhs <= context.upper_bound(&self.lhs)])));
-        }
-
-        if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
-            context.set_lower_bound(
-                &self.lhs,
-                context.lower_bound(restrictor),
-                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
-        }
-        Ok(())
-    }
-
-    fn propagate(&mut self, mut context: PropagationContextMut) -> PropagationStatusCP {
-        
         self.propagate_directly(&mut context)
     }
 
     fn notify(&mut self, mut context: StatefulPropagationContext, local_id: LocalId, event: OpaqueDomainEvent) -> EnqueueDecision {
-
-        match event.unwrap() {
-            // Lower bounds always match to an array node as we don't register to anything else.
-            IntDomainEvent::LowerBound => {
-                let index = local_id.unpack() as usize;
-
-                // The restricting variable was propagated on, see if we can replace it with a restrictor of equal value.
-                if index == context.value(*self.restricting_index) as usize {
-                    // Realistically tho this is a size 10 array max. So acceleration datastructures are most likely not worth it.
-                    let (index, restrictor) = self.array.iter().enumerate().min_by_key(|(_, x)| context.lower_bound(*x)).unwrap().clone();
-
-                    // Update the internal datastructures such that is always has the correct values set.
-                    // We might be able to skip out on this in certain scenarios.
-                    let old_bound = context.value(*self.lower_bound_right_hand_side).clone();
-                    let new_bound = context.lower_bound(restrictor) as i64;
-                    if old_bound != new_bound {
-                        context.add_assign(*self.lower_bound_right_hand_side, new_bound - old_bound);
-                    }
-                    context.assign(*self.restricting_index, index as i64);
-
-                    // Only enqueue if stuff has tightened.
-                    if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
-                        EnqueueDecision::Enqueue
-                    } else {
-                        EnqueueDecision::Skip
-                    }
-                } else {
-                    EnqueueDecision::Skip
-                }
-            }
-            // The upperbound registration only matters for the lhs so we do not have to care about the id.
-            IntDomainEvent::UpperBound => {
-                // Conflict will arise!
-                if context.upper_bound(&self.lhs) < context.value(*self.lower_bound_right_hand_side) as i32 {
-                    EnqueueDecision::Enqueue
-                } else {
-                    // But otherwise nothing matters
-                    EnqueueDecision::Skip
-                }
-            }
-            _ => {EnqueueDecision::Enqueue}
-        }
+        EnqueueDecision::Enqueue
     }
 
     fn priority(&self) -> u32 {
@@ -174,8 +91,11 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &self,
         context: StatefulPropagationContext,
     ) -> Option<PropositionalConjunction> {
-        if context.upper_bound(&self.lhs) < context.value(*self.lower_bound_right_hand_side) as i32 {
-            Some(self.create_conflict_reason(context))
+        let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
+        if context.lower_bound(restrictor) > context.upper_bound(&self.lhs) {
+            Some(conjunction!(
+                [restrictor >= context.lower_bound(restrictor)] &
+                [self.lhs <= context.upper_bound(&self.lhs)]))
         } else {
             None
         }
@@ -184,10 +104,10 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::test_solver::TestSolver;
-    use crate::{conjunction, predicate};
     use crate::engine::propagation::EnqueueDecision;
+    use crate::engine::test_solver::TestSolver;
     use crate::propagators::arithmetic::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
+    use crate::{conjunction, predicate};
 
     #[test]
     fn basic_test() {
