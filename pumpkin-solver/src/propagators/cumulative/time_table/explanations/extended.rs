@@ -1,6 +1,6 @@
 use crate::basic_types::cumulative_literal::{CumulativeExtendedType, CumulativeLiteral, MapToLiteral};
 use crate::basic_types::{Inconsistency, PropagationStatusCP, PropositionalConjunction};
-use crate::engine::propagation::{PropagationContext, PropagationContextMut, Propagator, ReadDomains};
+use crate::engine::propagation::{PropagationContext, PropagationContextMut, Propagator, PropagatorId, ReadDomains};
 use crate::engine::EmptyDomain;
 use crate::predicates::Predicate;
 use crate::propagators::cumulative::time_table::explanations::big_step::{create_big_step_conflict_explanation, create_big_step_predicate_propagating_task_lower_bound_propagation, create_big_step_predicate_propagating_task_upper_bound_propagation, create_big_step_propagation_explanation};
@@ -19,7 +19,6 @@ use std::sync::{LazyLock, Mutex};
 
 /// TODO create a new solver parameter that can be used to denote which underlying system extended resolution should utilise.
 
-pub(crate) static FREE_LITERALS: LazyLock<Mutex<Vec<Literal>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 pub(crate) static CUMULATIVE_TO_LITERAL: LazyLock<Mutex<HashMap<MapToLiteral, Literal>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) static LITERAL_TO_PROPAGATORS: LazyLock<Mutex<HashMap<Literal, LargerOrEqualMinimumPropagator<AffineView, AffineView>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -46,7 +45,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
         let mut is_first = false;
         
         let key = MapToLiteral::new(true, global_id, convert_profile_to_raw_ids(profile));
-        let literal = cache.entry(key).or_insert_with(|| {is_first = true; pop_new_literal()});
+        let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
 
         pumpkin_assert_simple!(context.lower_bound(literal) >= 0, "We are about to set this literal to true so there is no way it can currently be false.");
         context.assign_literal(literal, true, explanation)?;
@@ -69,16 +68,20 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
                 ReifiedPropagator::new(
                     false_propagator,
                     literal.not()
-                )
+                ),
+                context.pop_new_propagator_id(),
+                context.pop_new_propagator_id(),
             );
 
             // TODO the init may fail and that is not allowed.
             pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators we just created requires the literal to be set to true");
-            new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 1 failed to initialize, was the timetable consistent?");
-            new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 2 failed to initialize, was the timetable consistent?");
+            new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize, was the timetable consistent?");
+            new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize, was the timetable consistent?");
             
+            let cur_id = context.propagator_id;
+            context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
-           let result = new_propagators.prop1.propagator.propagate_directly(context);
+            let result = new_propagators.prop1.propagator.propagate_directly(context);
 
 
             // Note that the assert may fail if it is equals.
@@ -91,6 +94,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             }
             
             context.without_reification();
+            context.propagator_id = cur_id;
             
             context.cumulative_literals.push(new_propagators)
         }  else {
@@ -135,7 +139,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
         let mut is_first = false;
 
         let key = MapToLiteral::new(false, global_id, convert_profile_to_raw_ids(profile));
-        let literal = cache.entry(key).or_insert_with(|| {is_first = true; pop_new_literal()});
+        let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
 
         pumpkin_assert_simple!(context.lower_bound(literal) >= 0, "We are about to set this literal to true so there is no way it can currently be false.");
         context.assign_literal(literal, true, explanation)?;
@@ -158,15 +162,18 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
                 ReifiedPropagator::new(
                     false_propagator,
                     literal.not()
-                )
+                ),
+                context.pop_new_propagator_id(),
+                context.pop_new_propagator_id(),
             );
 
             // TODO we need to look at these inits. The expect should be removed as it is below.
             pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators we just created requires the literal to be set to true");
-            new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 1 failed to initialize, was the timetable consistent?");
-            new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 2 failed to initialize, was the timetable consistent?");
-            
+            new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize, was the timetable consistent?");
+            new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize, was the timetable consistent?");
 
+            let cur_id = context.propagator_id;
+            context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
             let result = new_propagators.prop1.propagator.propagate_directly(context);
             match result {
@@ -175,6 +182,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
                 _ => {pumpkin_assert_simple!(context.upper_bound(&propagating_task.start_variable) <= profile.start - propagating_task.processing_time, "Propagation did not happen in accordance to the timetable");}
             }
             context.without_reification();
+            context.propagator_id = cur_id;
 
             context.cumulative_literals.push(new_propagators)
         } else {
@@ -221,9 +229,6 @@ fn create_support<Var: IntegerVariable + 'static>(
     }
 }
 
-fn pop_new_literal() -> Literal {
-    FREE_LITERALS.lock().unwrap().pop().expect("FREE_LITERALS was emptied, increase the upperbound of literals.")
-}
 
 // /// Creates the propagation explanation using the extended approach (see
 // /// [`CumulativeExplanationType::extended`])

@@ -43,6 +43,10 @@ impl PropagatorStore {
     ) -> impl Iterator<Item = &mut Box<dyn Propagator>> + '_ {
         self.propagators.iter_mut()
     }
+    
+    pub(crate) fn replace(&mut self, propagator_id: PropagatorId, propagator: Box<dyn Propagator>,) {
+        self.propagators[propagator_id] = propagator;
+    }
 }
 
 impl Index<PropagatorId> for PropagatorStore {

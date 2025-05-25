@@ -68,6 +68,8 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) watch_list_cp: &'a mut WatchListCP,
     pub(crate) _variable_names: &'a mut VariableNames,
     pub(crate) cumulative_literals: &'a mut Vec<CumulativeLiteral>,
+    pub(crate) free_literals: &'a mut Vec<Literal>,
+    pub(crate) free_propagator_ids: &'a mut Vec<PropagatorId>,
 }
 
 impl<'a> PropagationContextMut<'a> {
@@ -93,12 +95,36 @@ impl<'a> PropagationContextMut<'a> {
             cumulative_literals
         }
     }
+    
+    // pub(crate) fn shallow_clone(&mut self, id: PropagatorId) -> Self {
+    //     PropagationContextMut {
+    //         stateful_assignments: self.stateful_assignments,
+    //         assignments: self.assignments,
+    //         reason_store: self.reason_store,
+    //         semantic_minimiser: self.semantic_minimiser,
+    //         propagator_id: id,
+    //         reification_literal: None,
+    //         watch_list_cp: self.watch_list_cp,
+    //         _variable_names: self._variable_names,
+    //         cumulative_literals: self.cumulative_literals,
+    //         free_literals: self.free_literals,
+    //         free_propagator_ids: self.free_propagator_ids,
+    //     }
+    // }
+    
+    pub(crate) fn pop_new_literal(&mut self) -> Literal {
+        self.free_literals.pop().expect("We ran out of new literals for cumulative")
+    }
+    
+    pub(crate) fn pop_new_propagator_id(&mut self) -> PropagatorId {
+        self.free_propagator_ids.pop().expect("We ran out of of propagator ids for cumulative")
+    }
 
-    pub(crate) fn as_initialisation_context(&mut self) -> PropagatorInitialisationContext {
+    pub(crate) fn as_initialisation_context(&mut self, propagator_id: PropagatorId) -> PropagatorInitialisationContext {
         PropagatorInitialisationContext::new(
             &mut self.watch_list_cp,
             &mut self.stateful_assignments,
-            self.propagator_id,
+            propagator_id,
             &mut self.assignments,
         )
     }

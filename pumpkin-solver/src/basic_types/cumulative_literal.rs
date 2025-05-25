@@ -3,7 +3,7 @@ use crate::propagators::less_or_equal_minimum::LessOrEqualMinimumPropagator;
 use crate::propagators::ReifiedPropagator;
 use crate::variables::AffineView;
 use clap::ValueEnum;
-
+use crate::engine::propagation::PropagatorId;
 
 type Affine = AffineView;
 type ReifiedLE = ReifiedPropagator<LessOrEqualMinimumPropagator<Affine, Affine>>;
@@ -14,12 +14,14 @@ pub type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Af
 #[derive(Debug)]
 pub(crate) struct CumulativeLiteral {
     pub prop1: ReifiedGE,
-    pub prop2: ReifiedLE
+    pub prop2: ReifiedLE,
+    pub id1: PropagatorId,
+    pub id2: PropagatorId,
 }
 
 impl CumulativeLiteral {
-    pub(crate) fn new(prop1: ReifiedGE, prop2: ReifiedLE) -> Self {
-        Self { prop1, prop2 }
+    pub(crate) fn new(prop1: ReifiedGE, prop2: ReifiedLE, id1: PropagatorId, id2: PropagatorId) -> Self {
+        Self { prop1, prop2, id1, id2 }
     }
 }
 
