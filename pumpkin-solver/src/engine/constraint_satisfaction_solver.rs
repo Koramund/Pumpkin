@@ -462,14 +462,6 @@ impl ConstraintSatisfactionSolver {
         termination: &mut impl TerminationCondition,
         brancher: &mut impl Brancher,
     ) -> CSPSolverExecutionFlag {
-        // reserve a bunch of space for cumulative as runtime creation in pumpkin is broken.
-        for _ in 0..100_000 {
-            // Every literal requires 2 propagators
-            let literal = self.create_new_literal(None);
-            self.free_literals.push(literal);
-            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
-            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
-        }
         let dummy_assumptions: Vec<Predicate> = vec![];
         self.solve_under_assumptions(&dummy_assumptions, termination, brancher)
     }
@@ -1394,6 +1386,19 @@ impl ConstraintSatisfactionSolver {
         );
 
         let new_propagator_id = self.propagators.alloc(Box::new(propagator_to_add), tag);
+
+
+        // reserve a bunch of space for cumulative as runtime creation in pumpkin is broken.
+        if self.free_literals.len() == 0 {
+            for _ in 0..100_000 {
+                // Every literal requires 2 propagators
+                let literal = self.create_new_literal(None);
+                self.free_literals.push(literal);
+                self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+                self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+            }
+        }
+
 
         let new_propagator = &mut self.propagators[new_propagator_id];
 
