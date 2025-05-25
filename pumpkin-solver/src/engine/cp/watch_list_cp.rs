@@ -7,7 +7,7 @@ use crate::containers::KeyedVec;
 use crate::engine::propagation::PropagatorVarId;
 use crate::engine::variables::DomainId;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub(crate) struct WatchListCP {
     watchers: KeyedVec<DomainId, WatcherCP>, /* contains propagator ids of propagators that
                                               * watch domain changes of the i-th integer
@@ -139,14 +139,14 @@ impl<'a> Watchers<'a> {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct WatcherCP {
     // FIXME measure performance of these vectors, they are treated as sets
     forward_watcher: Watcher,
     backtrack_watcher: Watcher,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct Watcher {
     lower_bound_watchers: Vec<PropagatorVarId>,
     upper_bound_watchers: Vec<PropagatorVarId>,

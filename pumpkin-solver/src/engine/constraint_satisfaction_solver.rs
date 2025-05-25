@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::num::NonZero;
+use std::ops::IndexMut;
 use std::time::Instant;
 
 use clap::ValueEnum;
@@ -59,6 +60,8 @@ use crate::engine::RestartOptions;
 use crate::engine::RestartStrategy;
 use crate::predicate;
 use crate::proof::ProofLog;
+use crate::proof::RootExplanationContext;
+use crate::propagators::dummy::DummyPropagator;
 use crate::propagators::nogoods::LearningOptions;
 use crate::propagators::nogoods::NogoodPropagator;
 use crate::pumpkin_assert_advanced;
@@ -148,6 +151,10 @@ pub struct ConstraintSatisfactionSolver {
     conflict_resolver: Box<dyn Resolver>,
 
     pub(crate) stateful_assignments: TrailedAssignments,
+    
+    pub(crate) free_literals: Vec<Literal>,
+    pub(crate) free_propagator_ids: Vec<PropagatorId>,
+    
 }
 
 impl Default for ConstraintSatisfactionSolver {
@@ -423,6 +430,8 @@ impl ConstraintSatisfactionSolver {
             },
             internal_parameters: solver_options,
             stateful_assignments: TrailedAssignments::default(),
+            free_literals: vec![],
+            free_propagator_ids: vec![],
         };
 
         // As a convention, the assignments contain a dummy domain_id=0, which represents a 0-1
@@ -753,6 +762,16 @@ impl ConstraintSatisfactionSolver {
             "Solver is not expected to be in the infeasible under assumptions state when initialising.
              Missed extracting the core?"
         );
+        
+        // reserve a bunch of space for cumulative as runtime creation in pumpkin is broken.
+        for _ in 0..100_000 {
+            // Every literal requires 2 propagators
+            let literal = self.create_new_literal(None);
+            self.free_literals.push(literal);
+            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+        }
+        
         self.state.declare_solving();
         assumptions.clone_into(&mut self.assumptions);
     }
@@ -1185,8 +1204,8 @@ impl ConstraintSatisfactionSolver {
             };
             
             for lit in cumulative_literals.into_iter() {
-                let _ = self.add_valid_intialised_propagator_during_search(lit.prop1, None);
-                let _ = self.add_valid_intialised_propagator_during_search(lit.prop2, None);
+                let _ = self.add_valid_intialised_propagator_during_search(lit.prop1, lit.id1);
+                let _ = self.add_valid_intialised_propagator_during_search(lit.prop2, lit.id2);
             }
             
             if self.assignments.get_decision_level() == 0 {
@@ -1227,6 +1246,7 @@ impl ConstraintSatisfactionSolver {
                             &conflict_nogood,
                             &self.propagators[propagator_id],
                             propagator_id,
+                            &self.watch_list_cp,
                         ));
 
                         let stored_conflict_info = StoredConflictInfo::Propagator {
@@ -1245,7 +1265,8 @@ impl ConstraintSatisfactionSolver {
                     &self.stateful_assignments,
                     &self.assignments,
                     &mut self.reason_store,
-                    &mut self.propagators
+                    &mut self.propagators,
+                    &self.watch_list_cp,
                 ),
                 "Checking the propagations performed by the propagator led to inconsistencies!"
             );
@@ -1263,6 +1284,7 @@ impl ConstraintSatisfactionSolver {
                     &self.stateful_assignments,
                     &self.assignments,
                     &self.propagators,
+                    &self.watch_list_cp,
                 )
         );
     }
@@ -1424,7 +1446,7 @@ impl ConstraintSatisfactionSolver {
     pub(crate) fn add_valid_intialised_propagator_during_search(
         &mut self,
         propagator_to_add: impl Propagator + 'static,
-        tag: Option<NonZero<u32>>,
+        propagator_id: PropagatorId,
     ) -> Result<(), ConstraintOperationError> {
         pumpkin_assert_simple!(
             propagator_to_add.priority() <= 3,
@@ -1433,12 +1455,12 @@ impl ConstraintSatisfactionSolver {
              but this can easily be changed if there is a good reason."
         );
 
-        let new_propagator_id = self.propagators.alloc(Box::new(propagator_to_add), tag);
+        self.propagators.replace(propagator_id, Box::new(propagator_to_add));
 
-        let new_propagator = &mut self.propagators[new_propagator_id];
+        let new_propagator = &mut self.propagators[propagator_id];
         
-        // TODO enqueuing can probably be removed, depending on how timetable implements this these should already be propagated to a fixpoint?
-        self.propagator_queue.enqueue_propagator(new_propagator_id, new_propagator.priority());
+        // TODO enqueuing probably not required.
+        self.propagator_queue.enqueue_propagator(propagator_id, new_propagator.priority());
 
         self.propagate();
         Ok(())
