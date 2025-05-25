@@ -30,7 +30,6 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
 
     pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
-        dbg!(self.array.iter().map(|x| context.lower_bound(x)).collect::<Vec<_>>());
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
             context.set_lower_bound(
                 &self.lhs,

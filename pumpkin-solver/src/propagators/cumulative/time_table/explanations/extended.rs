@@ -77,13 +77,9 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 1 failed to initialize, was the timetable consistent?");
             new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 2 failed to initialize, was the timetable consistent?");
             
-            dbg!(profile);
-            
             context.with_reification(*literal);
-            dbg!(context.lower_bound(&propagating_task.start_variable));
-            dbg!(context.lower_bound(&profile.profile_tasks[0].start_variable), context.lower_bound(&profile.profile_tasks[1].start_variable), &profile.profile_tasks);
-            let result = new_propagators.prop1.propagator.propagate_directly(context);
-            dbg!(context.lower_bound(&propagating_task.start_variable), profile.end + 1);
+           let result = new_propagators.prop1.propagator.propagate_directly(context);
+
 
             // Note that the assert may fail if it is equals.
             // I am attributing this to the fact that a profile may appear where at some point an extra unnecessary task overlaps. However, we would still propagate to the end of the profile.
@@ -169,15 +165,10 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators we just created requires the literal to be set to true");
             new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 1 failed to initialize, was the timetable consistent?");
             new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context()).expect("Prop 2 failed to initialize, was the timetable consistent?");
-
-            dbg!(profile);
+            
 
             context.with_reification(*literal);
-            dbg!(context.upper_bound(&propagating_task.start_variable));
-            dbg!(context.upper_bound(&profile.profile_tasks[0].start_variable), context.upper_bound(&profile.profile_tasks[1].start_variable), &profile.profile_tasks);
             let result = new_propagators.prop1.propagator.propagate_directly(context);
-            dbg!(context.upper_bound(&propagating_task.start_variable), profile.start - propagating_task.processing_time);
-            
             match result {
                 Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
                 Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
