@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use num::range;
 use super::time_table_util::propagate_based_on_timetable;
 use super::time_table_util::should_enqueue;
 use crate::basic_types::PropagationStatusCP;
@@ -20,7 +19,6 @@ use crate::propagators::util::create_tasks;
 use crate::propagators::util::register_tasks;
 use crate::propagators::util::update_bounds_task;
 use crate::propagators::ArgTask;
-use crate::propagators::cumulative::time_table::explanations::extended::{FREE_LITERALS, RESERVED_PROPAGATOR_IDS};
 use crate::propagators::CumulativeParameters;
 use crate::propagators::CumulativePropagatorOptions;
 use crate::propagators::ResourceProfile;

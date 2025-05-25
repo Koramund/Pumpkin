@@ -82,6 +82,8 @@ impl TestSolver {
             &mut self.assignments,
         ))?;
         let mut vec = vec![];
+        let mut vec2 = vec![];
+        let mut vec3 = vec![];
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -91,6 +93,8 @@ impl TestSolver {
             &mut self.watch_list,
             &mut self.variable_names,
             &mut vec,
+            &mut vec2,
+            &mut vec3,
         );
         self.propagator_store[id].propagate(context)?;
 
@@ -183,6 +187,8 @@ impl TestSolver {
 
     pub(crate) fn propagate(&mut self, propagator: PropagatorId) -> Result<(), Inconsistency> {
         let mut vec = vec![];
+        let mut vec2 = vec![];
+        let mut vec3 = vec![];
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -192,6 +198,8 @@ impl TestSolver {
             &mut self.watch_list,
             &mut self.variable_names,
             &mut vec,
+            &mut vec2,
+            &mut vec3,
         );
         self.propagator_store[propagator].propagate(context)
     }
@@ -205,6 +213,8 @@ impl TestSolver {
         loop {
             {
                 let mut vec = vec![];
+                let mut vec2 = vec![];
+                let mut vec3 = vec![];
                 // Specify the life-times to be able to retrieve the trail entries
                 let context = PropagationContextMut::new(
                     &mut self.stateful_assignments,
@@ -214,7 +224,9 @@ impl TestSolver {
                     PropagatorId(0),
                     &mut self.watch_list,
                     &mut self.variable_names,
-                    &mut vec,
+                    &mut vec,                
+                    &mut vec2,
+                    &mut vec3,
                 );
                 self.propagator_store[propagator].propagate(context)?;
                 self.notify_propagator(propagator);

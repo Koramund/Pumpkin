@@ -82,6 +82,8 @@ impl<'a> PropagationContextMut<'a> {
         watch_list_cp: &'a mut WatchListCP,
         _variable_names: &'a mut VariableNames,
         cumulative_literals: &'a mut Vec<CumulativeLiteral>,
+        free_literals: &'a mut Vec<Literal>,
+        free_propagator_ids: &'a mut Vec<PropagatorId>,
     ) -> Self {
         PropagationContextMut {
             stateful_assignments,
@@ -92,7 +94,9 @@ impl<'a> PropagationContextMut<'a> {
             reification_literal: None,
             watch_list_cp,
             _variable_names,
-            cumulative_literals
+            cumulative_literals,
+            free_literals,
+            free_propagator_ids,
         }
     }
     

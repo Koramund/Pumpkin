@@ -1509,6 +1509,8 @@ mod tests {
         let nogood = conjunction!([a >= 2] & [b >= 1] & [c >= 10]);
         {
             let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
@@ -1518,6 +1520,8 @@ mod tests {
                 &mut solver.watch_list,
                 &mut solver.variable_names,
                 &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)
@@ -1554,6 +1558,8 @@ mod tests {
         let nogood = conjunction!([a >= 2] & [b >= 1] & [c >= 10]);
         {
             let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
@@ -1563,6 +1569,8 @@ mod tests {
                 &mut solver.watch_list,
                 &mut solver.variable_names,
                 &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)
