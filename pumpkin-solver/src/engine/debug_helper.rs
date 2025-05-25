@@ -80,6 +80,8 @@ impl DebugHelper {
             let mut semantic_minimiser = SemanticMinimiser::default();
             let mut variable_names = VariableNames::default();
             let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
@@ -89,6 +91,8 @@ impl DebugHelper {
                 &mut watch_list_clone,
                 &mut variable_names,
                 &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
             let propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -247,6 +251,8 @@ impl DebugHelper {
                 let mut semantic_minimiser = SemanticMinimiser::default();
                 let mut variable_names = VariableNames::default();
                 let mut vec = vec![];
+                let mut vec2 = vec![];
+                let mut vec3 = vec![];
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
@@ -256,6 +262,8 @@ impl DebugHelper {
                     &mut watch_list_clone,
                     &mut variable_names,
                     &mut vec,
+                    &mut vec2,
+                    &mut vec3,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -364,6 +372,8 @@ impl DebugHelper {
                     
                     let mut variable_names = VariableNames::default();
                     let mut vec = vec![];
+                    let mut vec2 = vec![];
+                    let mut vec3 = vec![];
                     let context = PropagationContextMut::new(
                         &mut stateful_assignments_clone,
                         &mut assignments_clone,
@@ -373,6 +383,8 @@ impl DebugHelper {
                         &mut watch_list_clone,
                         &mut variable_names,
                         &mut vec,
+                        &mut vec2,
+                        &mut vec3,
                     );
                     let debug_propagation_status_cp =
                         propagator.debug_propagate_from_scratch(context);
@@ -434,6 +446,8 @@ impl DebugHelper {
             let mut semantic_minimiser = SemanticMinimiser::default();
             let mut variable_names = VariableNames::default();
             let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
@@ -443,6 +457,8 @@ impl DebugHelper {
                 &mut watch_list_clone,
                 &mut variable_names,
                 &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
             let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
             assert!(
@@ -502,6 +518,8 @@ impl DebugHelper {
                 let mut semantic_minimiser = SemanticMinimiser::default();
                 let mut variable_names = VariableNames::default();
                 let mut vec = vec![];
+                let mut vec2 = vec![];
+                let mut vec3 = vec![];
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
@@ -511,6 +529,8 @@ impl DebugHelper {
                     &mut watch_list_clone,
                     &mut variable_names,
                     &mut vec,
+                    &mut vec2,
+                    &mut vec3,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 

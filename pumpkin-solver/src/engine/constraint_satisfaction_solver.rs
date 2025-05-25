@@ -462,6 +462,14 @@ impl ConstraintSatisfactionSolver {
         termination: &mut impl TerminationCondition,
         brancher: &mut impl Brancher,
     ) -> CSPSolverExecutionFlag {
+        // reserve a bunch of space for cumulative as runtime creation in pumpkin is broken.
+        for _ in 0..100_000 {
+            // Every literal requires 2 propagators
+            let literal = self.create_new_literal(None);
+            self.free_literals.push(literal);
+            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+        }
         let dummy_assumptions: Vec<Predicate> = vec![];
         self.solve_under_assumptions(&dummy_assumptions, termination, brancher)
     }
@@ -759,15 +767,6 @@ impl ConstraintSatisfactionSolver {
              Missed extracting the core?"
         );
         
-        // reserve a bunch of space for cumulative as runtime creation in pumpkin is broken.
-        for _ in 0..100_000 {
-            // Every literal requires 2 propagators
-            let literal = self.create_new_literal(None);
-            self.free_literals.push(literal);
-            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
-            self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
-        }
-        
         self.state.declare_solving();
         assumptions.clone_into(&mut self.assumptions);
     }
@@ -1003,6 +1002,8 @@ impl ConstraintSatisfactionSolver {
             &mut self.watch_list_cp,
             &mut self.variable_names,
             &mut vec,
+            &mut self.free_literals,
+            &mut self.free_propagator_ids,
         );
 
         ConstraintSatisfactionSolver::add_asserting_nogood_to_nogood_propagator(
@@ -1199,7 +1200,9 @@ impl ConstraintSatisfactionSolver {
                     propagator_id,
                     &mut self.watch_list_cp,
                     &mut self.variable_names,
-                    &mut cumulative_literals
+                    &mut cumulative_literals,
+                    &mut self.free_literals,
+                    &mut self.free_propagator_ids,
                 );
                 propagator.propagate(context)
             };
@@ -1483,6 +1486,8 @@ impl ConstraintSatisfactionSolver {
             &mut self.watch_list_cp,
             &mut self.variable_names,
             &mut vec,
+            &mut self.free_literals,
+            &mut self.free_propagator_ids,
         );
         let nogood_propagator_id = Self::get_nogood_propagator_id();
 
