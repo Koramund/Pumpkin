@@ -1,27 +1,25 @@
 use crate::basic_types::cumulative_literal::{CumulativeExtendedType, CumulativeLiteral, MapToLiteral};
-use crate::basic_types::{Inconsistency, PropagationStatusCP, PropositionalConjunction};
-use crate::engine::propagation::{PropagationContext, PropagationContextMut, Propagator, PropagatorId, ReadDomains};
+use crate::basic_types::{PropagationStatusCP, PropositionalConjunction};
+use crate::engine::propagation::{PropagationContext, PropagationContextMut, Propagator, ReadDomains};
 use crate::engine::EmptyDomain;
 use crate::predicates::Predicate;
 use crate::propagators::cumulative::time_table::explanations::big_step::{create_big_step_conflict_explanation, create_big_step_predicate_propagating_task_lower_bound_propagation, create_big_step_predicate_propagating_task_upper_bound_propagation, create_big_step_propagation_explanation};
 use crate::propagators::cumulative::time_table::explanations::naive::{create_naive_conflict_explanation, create_naive_predicate_propagating_task_lower_bound_propagation, create_naive_predicate_propagating_task_upper_bound_propagation, create_naive_propagation_explanation};
 use crate::propagators::cumulative::time_table::explanations::pointwise::{create_pointwise_conflict_explanation, create_pointwise_predicate_propagating_task_lower_bound_propagation, create_pointwise_predicate_propagating_task_upper_bound_propagation, create_pointwise_propagation_explanation};
 use crate::propagators::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
-use crate::propagators::less_or_equal_minimum::LessThanMinimumPropagator;
 use crate::propagators::{ReifiedPropagator, ResourceProfile, Task};
-use crate::variables::{AffineView, IntegerVariable, Literal, TransformableVariable};
 use crate::pumpkin_assert_simple;
+use crate::variables::{IntegerVariable, Literal, TransformableVariable};
 use std::collections::HashMap;
 use std::ops::Not;
 use std::rc::Rc;
 use std::sync::{LazyLock, Mutex};
 
-
 /// TODO create a new solver parameter that can be used to denote which underlying system extended resolution should utilise.
 
 pub(crate) static CUMULATIVE_TO_LITERAL: LazyLock<Mutex<HashMap<MapToLiteral, Literal>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub(crate) static LITERAL_TO_PROPAGATORS: LazyLock<Mutex<HashMap<Literal, LargerOrEqualMinimumPropagator<AffineView, AffineView>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+pub(crate) static LITERAL_TO_PROPAGATORS: LazyLock<Mutex<HashMap<Literal, CumulativeLiteral>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVariable + 'static>(
     context: &mut PropagationContextMut,
@@ -31,101 +29,102 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
 ) -> Result<(), EmptyDomain> {
     let global_id = propagating_task.start_variable.get_id();
     let mut cache = CUMULATIVE_TO_LITERAL.lock().unwrap();
-
-    // dbg!(profiles.len(), propagating_task.start_variable.get_id());
     
     for profile in profiles {
-        // note this may actually not be used but bad architecture choices requires this to be done here :(
         let pointwise_timepoint = profile.end.min(
             context.lower_bound(&propagating_task.start_variable) + propagating_task.processing_time
                 - 1,
         );
         
-        pumpkin_assert_simple!(profile.profile_tasks.len() >= 1, "Empty profiles do weird things");
-        
         let mut explanation = create_support(&context.as_readonly(), profile, pointwise_timepoint, underlying_type);
         explanation.add(create_pointwise_predicate_propagating_task_lower_bound_propagation(propagating_task, Some(pointwise_timepoint)));
-
-        pumpkin_assert_simple!(explanation.len() >= 1, "Empty explanations may mess up the trail");
         
+        let key = MapToLiteral::new(global_id, convert_profile_to_raw_ids(profile));
         let mut is_first = false;
-        
-        let key = MapToLiteral::new(true, global_id, convert_profile_to_raw_ids(profile));
-        // dbg!(&key, context.free_literals.len());
-        // dbg!(cache.keys().collect::<Vec<_>>());
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
-        dbg!(literal.get_id());
+        
         pumpkin_assert_simple!(!context.is_literal_false(literal), "The literal was already set to false however timetable says it should be true, verify the inconsistency detection");
         pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
-        context.assign_literal(literal, true, explanation)?;
+        context.assign_literal(literal, true, explanation).expect("Propagators are inconsistent with timetable");
         
-
-        if is_first {
-            let true_propagator = LargerOrEqualMinimumPropagator::new(
-                propagating_task.start_variable.clone().scaled(1),
-                profile.profile_tasks.iter().map(|x| x.start_variable.offset(x.processing_time)).collect());
-            let false_propagator = LessThanMinimumPropagator::new(
-                propagating_task.start_variable.clone().scaled(1),
-                profile.profile_tasks.iter().map(|x| x.start_variable.offset(x.processing_time)).collect());
-            let _ = LITERAL_TO_PROPAGATORS.lock().unwrap().insert(*literal, true_propagator.clone());
-            
-            let mut new_propagators = CumulativeLiteral::new(
-                ReifiedPropagator::new(
-                    true_propagator,
-                    *literal),
-                ReifiedPropagator::new(
-                    false_propagator,
-                    literal.not()
-                ),
-                context.pop_new_propagator_id(),
-                context.pop_new_propagator_id(),
-            );
-
-            // TODO the init may fail and that is not allowed.
-            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
-            new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize, was the timetable consistent?");
-            new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize, was the timetable consistent?");
-            
-            let cur_id = context.propagator_id;
-            context.propagator_id = new_propagators.id1;
-            context.with_reification(*literal);
-            let result = new_propagators.prop1.propagator.propagate_directly(context, profile.end + 1);
-
-
-            // Note that the assert may fail if it is equals.
-            // I am attributing this to the fact that a profile may appear where at some point an extra unnecessary task overlaps. However, we would still propagate to the end of the profile.
-            match result {
-                Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
-                Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
-                _ => {pumpkin_assert_simple!(context.lower_bound(&propagating_task.start_variable) >= profile.end + 1, "Propagation did not happen in accordance to the timetable");
-                }
-            }
-            
-            context.without_reification();
-            context.propagator_id = cur_id;
-            
-            context.cumulative_literals.push(new_propagators)
-        }  else {
-            let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
-            let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
-
-            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators with reification requires the literal to be set to true");
-            context.with_reification(*literal);
-            let result = true_propagator.propagate_directly(context, profile.end + 1);
-
-            match result {
-                Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
-                Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
-                _ => {pumpkin_assert_simple!(context.lower_bound(&propagating_task.start_variable) >= profile.end + 1, "Propagation did not happen in accordance to the timetable");}
-            }
-            context.without_reification();
-        }
+        let bound: i32 = profile.end+1;
+        propagate_abstract(context, propagating_task, profile, is_first, literal, bound).expect("Failed to propagate");
+        pumpkin_assert_simple!(context.lower_bound(&propagating_task.start_variable) >= bound, "Propagation did not happen in accordance to the timetable")
     }
-
     Ok(())
 }
 
+/// This is an abstraction layer to hide behaviour between when it is the first propagation or a repeated propagation.
+/// It guarantees that after being called the bounds of the propagating task have been updated in accordance to bound and the polarity of the literal.
+/// In the current timetable API it does not support failure of the propagation and or initialization.
+/// This is because the timetable itself contains the relevant information on whether a conflict occurs.
+fn propagate_abstract<Var: IntegerVariable + 'static>(context: &mut PropagationContextMut, propagating_task: &Rc<Task<Var>>, profile: &&ResourceProfile<Var>, is_first: bool, literal: &mut Literal, bound: i32) -> Result<(), EmptyDomain> {
+    if is_first {
+        let mut new_propagators = configure_new_literal(context, *literal, profile, propagating_task);
+        init_propagators(context, *literal, &mut new_propagators).expect("initialization failed.");
+        propagate_internal(context, *literal, &new_propagators, bound).expect("Propagation was not successful");
+        let _ = LITERAL_TO_PROPAGATORS.lock().unwrap().insert(*literal, new_propagators.clone());
+        context.cumulative_literals.push(new_propagators);
+    } else {
+        let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
+        let propagators = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
+        propagate_internal(context, *literal, propagators, bound).expect("Propagation was not successful");
+    }
+    Ok(())
+}
 
+/// This function actually applies the propagation on the propagated task via the new propagators.
+/// It does this by manually setting reification and then calling propagate on the underlying propagators.
+/// It promises to return context with the correct ID set and no active reification.
+fn propagate_internal(context: &mut PropagationContextMut, literal: Literal, propagators: &CumulativeLiteral, bound:i32) -> Result<(), EmptyDomain> {
+    let cur_id = context.propagator_id;
+
+    let result: PropagationStatusCP;
+    if context.is_literal_true(&literal) {
+        context.with_reification(literal);
+        context.propagator_id = propagators.lb_id;
+        result = propagators.lb_propagator.propagator.propagate_directly(context, bound);
+    } else {
+        pumpkin_assert_simple!(context.is_literal_false(&literal), "Propagating propagators with reification requires the literal to be set, it is currently undefined, note the if statement above.");
+        context.with_reification(literal.not());
+        context.propagator_id = propagators.ub_id;
+        result = propagators.ub_propagator.propagator.propagate_directly(context, bound);
+    }
+    
+    match result {
+        Err(_) => {panic!("This propagation function is not allowed to raise a conflict. This means we have overstepped our bounds")}
+        _ => {}
+    }
+    
+    context.without_reification();
+    context.propagator_id = cur_id;
+    Ok(())
+}
+
+fn init_propagators(context: &mut PropagationContextMut, literal: Literal, propagators: &mut CumulativeLiteral) -> Result<(), EmptyDomain> {
+    pumpkin_assert_simple!(context.is_literal_true(&literal), "Propagating propagators we just created requires the literal to be set to true");
+    propagators.lb_propagator.initialise_at_root(&mut context.as_initialisation_context(propagators.lb_id)).expect("Prop 1 failed to initialize, did reify mess up?");
+    propagators.ub_propagator.initialise_at_root(&mut context.as_initialisation_context(propagators.ub_id)).expect("Prop 2 failed to initialize, did reify mess up?");
+    Ok(())
+}
+
+fn configure_new_literal<Var: IntegerVariable + 'static>(context: &mut PropagationContextMut, lit: Literal, profile: &ResourceProfile<Var>, propagating_task: &Rc<Task<Var>>) -> CumulativeLiteral {
+    CumulativeLiteral::new(
+        ReifiedPropagator::new(
+            LargerOrEqualMinimumPropagator::new(
+                propagating_task.start_variable.clone().scaled(1),
+                profile.profile_tasks.iter().map(|x| x.start_variable.offset(x.processing_time)).collect()),
+            lit),
+        ReifiedPropagator::new(
+            // TODO yo do these offsets match?
+            LargerOrEqualMinimumPropagator::new(
+                propagating_task.start_variable.scaled(-1),
+                profile.profile_tasks.iter().map(|x| x.start_variable.offset(-propagating_task.processing_time).scaled(-1)).collect()),
+            lit.not()),
+        context.pop_new_propagator_id(),
+        context.pop_new_propagator_id()
+    )
+}
 
 pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVariable + 'static>(
     context: &mut PropagationContextMut,
@@ -137,82 +136,24 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
     let mut cache = CUMULATIVE_TO_LITERAL.lock().unwrap();
 
     for profile in profiles {
-        // note this may actually not be used but bad architecture choices requires this to be done here :(
         let pointwise_timepoint = profile.start
             .max(context.upper_bound(&propagating_task.start_variable));
-
-        pumpkin_assert_simple!(profile.profile_tasks.len() >= 1, "Empty profiles do weird things");
         
         let mut explanation = create_support(&context.as_readonly(), profile, pointwise_timepoint, underlying_type);
         explanation.add(create_pointwise_predicate_propagating_task_upper_bound_propagation(propagating_task, Some(pointwise_timepoint)));
-
-        pumpkin_assert_simple!(explanation.len() >= 1, "Empty explanations may mess up the trail");
         
+        let key = MapToLiteral::new(global_id, convert_profile_to_raw_ids(profile));
         let mut is_first = false;
-
-        let key = MapToLiteral::new(false, global_id, convert_profile_to_raw_ids(profile));
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
 
-        pumpkin_assert_simple!(!context.is_literal_false(literal), "The literal was already set to false however timetable says it should be true, verify the inconsistency detection");
-        pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
-        dbg!(literal.get_id());
-        context.assign_literal(literal, true, explanation)?;
+        pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, yet timetable says it should be false.");
+        pumpkin_assert_simple!(!context.is_literal_false(literal), "The literal was already set to false, are your propagators strong enough?");
+        context.assign_literal(literal, false, explanation).expect("Propagators are inconsistent with timetable");
 
-        // Start >= min(end of conflicts)
-
-        if is_first {
-            let true_propagator = LargerOrEqualMinimumPropagator::new(
-                propagating_task.start_variable.scaled(-1),
-                profile.profile_tasks.iter().map(|x| x.start_variable.offset(-propagating_task.processing_time).scaled(-1)).collect());
-            let false_propagator = LessThanMinimumPropagator::new(
-                propagating_task.start_variable.offset(1).scaled(-1),
-                profile.profile_tasks.iter().map(|x| x.start_variable.offset(-propagating_task.processing_time).scaled(-1)).collect());
-            let _ = LITERAL_TO_PROPAGATORS.lock().unwrap().insert(*literal, true_propagator.clone());
-
-            let mut new_propagators = CumulativeLiteral::new(
-                ReifiedPropagator::new(
-                    true_propagator,
-                    *literal),
-                ReifiedPropagator::new(
-                    false_propagator,
-                    literal.not()
-                ),
-                context.pop_new_propagator_id(),
-                context.pop_new_propagator_id(),
-            );
-
-            // TODO we need to look at these inits. The expect should be removed as it is below.
-            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
-            new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize, was the timetable consistent?");
-            new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize, was the timetable consistent?");
-
-            let cur_id = context.propagator_id;
-            context.propagator_id = new_propagators.id1;
-            context.with_reification(*literal);
-            let result = new_propagators.prop1.propagator.propagate_directly(context, -(profile.start - propagating_task.processing_time));
-            match result {
-                Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
-                _ => {pumpkin_assert_simple!(context.upper_bound(&propagating_task.start_variable) <= profile.start - propagating_task.processing_time, "Propagation did not happen in accordance to the timetable");}
-            }
-            context.without_reification();
-            context.propagator_id = cur_id;
-
-            context.cumulative_literals.push(new_propagators)
-        } else {
-            let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
-            let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
-
-            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators with reification requires the literal to be set to true");
-            context.with_reification(*literal);
-            let result = true_propagator.propagate_directly(context, -(profile.start - propagating_task.processing_time));
-
-            match result {
-                Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
-                _ => {pumpkin_assert_simple!(context.upper_bound(&propagating_task.start_variable) <= profile.start - propagating_task.processing_time, "Propagation did not happen in accordance to the timetable");}
-            }
-            
-            context.without_reification();
-        }
+        // Remember the variables are negatively scaled
+        let bound: i32 = -(profile.start - propagating_task.processing_time);
+        propagate_abstract(context, propagating_task, profile, is_first, literal, bound).expect("Failed to propagate");
+        pumpkin_assert_simple!(context.upper_bound(&propagating_task.start_variable) <= profile.start - propagating_task.processing_time, "Propagation did not happen in accordance to the timetable");
 
     }
 
@@ -273,7 +214,7 @@ pub(crate) fn create_extended_conflict_explanation<Var: IntegerVariable + 'stati
 /// This returns the predicate to be used in the original reason when updating the lower bound of that same variable
 /// AKA it is the predicate showing that the task to be moved is constrained enough to overlap with the mandatory parts of the profile.
 /// TODO actually just do this bs after calling the create_support thing
-/// pointwise, bigstep, naive all take different parameters for this.
+/// pointwise, big step, naive all take different parameters for this.
 pub(crate) fn create_extended_predicate_propagating_task_lower_bound_propagation<Var>(
     context: PropagationContext,
     task: &Rc<Task<Var>>,

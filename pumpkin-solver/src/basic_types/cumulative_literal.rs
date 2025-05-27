@@ -1,27 +1,24 @@
 use crate::propagators::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
-use crate::propagators::less_or_equal_minimum::LessThanMinimumPropagator;
 use crate::propagators::ReifiedPropagator;
 use crate::variables::AffineView;
 use clap::ValueEnum;
 use crate::engine::propagation::PropagatorId;
 
-type Affine = AffineView;
-type ReifiedLE = ReifiedPropagator<LessThanMinimumPropagator<Affine, Affine>>;
-pub type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine>>;
+pub(crate) type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<AffineView, AffineView>>;
 
 /// They are given separate var definitions as Var1 may not be an affineView but Var2 may be and vice versa
 /// This depends on the shift they have partaken in
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct CumulativeLiteral {
-    pub prop1: ReifiedGE,
-    pub prop2: ReifiedLE,
-    pub id1: PropagatorId,
-    pub id2: PropagatorId,
+    pub lb_propagator: ReifiedGE,
+    pub ub_propagator: ReifiedGE,
+    pub lb_id: PropagatorId,
+    pub ub_id: PropagatorId,
 }
 
 impl CumulativeLiteral {
-    pub(crate) fn new(prop1: ReifiedGE, prop2: ReifiedLE, id1: PropagatorId, id2: PropagatorId) -> Self {
-        Self { prop1, prop2, id1, id2 }
+    pub(crate) fn new(lb_propagator: ReifiedGE, ub_propagator: ReifiedGE, lb_id: PropagatorId, ub_id: PropagatorId) -> Self {
+        Self { lb_propagator, ub_propagator, lb_id, ub_id }
     }
 }
 
@@ -29,15 +26,14 @@ impl CumulativeLiteral {
 /// This struct is utilized as the key to the global map
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub(crate) struct MapToLiteral {
-    pub is_lower_bound: bool,
     pub shifted_task: u32,
     pub conflicting_tasks: Vec<u32>,
 }
 
 impl MapToLiteral {
-    pub(crate) fn new(is_lower_bound: bool, shifted_task: u32, mut conflicting_tasks: Vec<u32>) -> Self {
+    pub(crate) fn new(shifted_task: u32, mut conflicting_tasks: Vec<u32>) -> Self {
         conflicting_tasks.sort();
-        MapToLiteral{is_lower_bound, shifted_task, conflicting_tasks}
+        MapToLiteral{shifted_task, conflicting_tasks}
     }
 }
 

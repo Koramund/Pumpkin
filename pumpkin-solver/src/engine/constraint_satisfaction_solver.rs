@@ -1200,8 +1200,8 @@ impl ConstraintSatisfactionSolver {
             };
             
             for lit in cumulative_literals.into_iter() {
-                let _ = self.add_valid_intialised_propagator_during_search(lit.prop1, lit.id1);
-                let _ = self.add_valid_intialised_propagator_during_search(lit.prop2, lit.id2);
+                let _ = self.add_valid_intialised_propagator_during_search(lit.lb_propagator, lit.lb_id);
+                let _ = self.add_valid_intialised_propagator_during_search(lit.ub_propagator, lit.ub_id);
             }
             
             if self.assignments.get_decision_level() == 0 {
