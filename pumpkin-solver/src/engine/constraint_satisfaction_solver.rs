@@ -1216,11 +1216,14 @@ impl ConstraintSatisfactionSolver {
                 Err(inconsistency) => match inconsistency {
                     // A propagator did a change that resulted in an empty domain.
                     Inconsistency::EmptyDomain => {
+                        dbg!("empty domain conflict", &self.propagators[propagator_id].name());
                         self.prepare_for_conflict_resolution();
                         break;
                     }
                     // A propagator-specific reason for the current conflict.
                     Inconsistency::Conflict(conflict_nogood) => {
+                        dbg!("actual conflict", &conflict_nogood, &self.propagators[propagator_id].name());
+                        
                         pumpkin_assert_advanced!(DebugHelper::debug_reported_failure(
                             &self.stateful_assignments,
                             &self.assignments,
@@ -1453,10 +1456,7 @@ impl ConstraintSatisfactionSolver {
 
         let new_propagator = &mut self.propagators[propagator_id];
         
-        // TODO enqueuing probably not required.
         self.propagator_queue.enqueue_propagator(propagator_id, new_propagator.priority());
-
-        self.propagate();
         Ok(())
     }
     

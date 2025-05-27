@@ -1,4 +1,4 @@
-use crate::basic_types::PropagationStatusCP;
+use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::{conjunction, pumpkin_assert_simple};
 use crate::engine::cp::propagation::ReadDomains;
@@ -31,6 +31,7 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
     pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut, bound: i32) -> PropagationStatusCP {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         pumpkin_assert_simple!(context.lower_bound(restrictor) >= bound, "The timetable profile is stricter than the propagator.");
+        dbg!("entered via timetable");
         if bound > context.lower_bound(&self.lhs) {
             context.set_lower_bound(
                 &self.lhs,
@@ -76,6 +77,14 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &self,
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
+        dbg!("entered normally");
+
+        match self.detect_inconsistency(context.as_stateful_readonly()) {
+            None => {}
+            Some(conflict) => {return Err(Inconsistency::from(conflict))}
+        }
+        
+        
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
             context.set_lower_bound(
@@ -99,10 +108,17 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         context: StatefulPropagationContext,
     ) -> Option<PropositionalConjunction> {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
-        if context.lower_bound(restrictor) > context.upper_bound(&self.lhs) {
-            Some(conjunction!(
-                [restrictor >= context.lower_bound(restrictor)] &
-                [self.lhs <= context.upper_bound(&self.lhs)]))
+        let lb = context.lower_bound(restrictor);
+        if context.upper_bound(&self.lhs) < context.lower_bound(restrictor) {
+            // dbg!(context.upper_bound(&self.lhs), context.lower_bound(restrictor), restrictor.get_id(), lb);
+            let reason = conjunction!(
+                [restrictor >= lb] &
+                [self.lhs <= context.upper_bound(&self.lhs)]);
+            // dbg!(conjunction!(
+            //     [restrictor >= 18] &
+            //     [self.lhs <= context.upper_bound(&self.lhs)]));
+            // dbg!(&reason);
+            Some(reason)
         } else {
             None
         }

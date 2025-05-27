@@ -626,6 +626,9 @@ impl Propagator for NogoodPropagator {
                     let new_lower_bound = context.lower_bound(&updated_domain_id);
                     let new_upper_bound = context.upper_bound(&updated_domain_id);
 
+                    if new_lower_bound != new_lower_bound{
+                        dbg!(&updated_domain_id);
+                    }
                     assert!(new_lower_bound == new_upper_bound);
                     let assigned_value = new_lower_bound;
 
