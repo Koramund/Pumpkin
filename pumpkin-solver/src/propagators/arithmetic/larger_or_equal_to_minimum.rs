@@ -1,6 +1,6 @@
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
-use crate::conjunction;
+use crate::{conjunction, pumpkin_assert_simple};
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
@@ -28,13 +28,14 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
         }
     }
 
-    pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
+    pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut, bound: i32) -> PropagationStatusCP {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
-        if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
+        pumpkin_assert_simple!(context.lower_bound(restrictor) >= bound, "The timetable profile is stricter than the propagator.");
+        if bound > context.lower_bound(&self.lhs) {
             context.set_lower_bound(
                 &self.lhs,
-                context.lower_bound(restrictor),
-                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
+                bound,
+                conjunction!([restrictor >= bound]))?
         }
         Ok(())
     }
@@ -75,7 +76,14 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &self,
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
-        self.propagate_directly(&mut context)
+        let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
+        if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
+            context.set_lower_bound(
+                &self.lhs,
+                context.lower_bound(restrictor),
+                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
+        }
+        Ok(())
     }
 
     fn notify(&mut self, mut context: StatefulPropagationContext, local_id: LocalId, event: OpaqueDomainEvent) -> EnqueueDecision {
