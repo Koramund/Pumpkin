@@ -32,6 +32,8 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
     let global_id = propagating_task.start_variable.get_id();
     let mut cache = CUMULATIVE_TO_LITERAL.lock().unwrap();
 
+    // dbg!(profiles.len(), propagating_task.start_variable.get_id());
+    
     for profile in profiles {
         // note this may actually not be used but bad architecture choices requires this to be done here :(
         let pointwise_timepoint = profile.end.min(
@@ -39,18 +41,23 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
                 - 1,
         );
         
+        pumpkin_assert_simple!(profile.profile_tasks.len() >= 1, "Empty profiles do weird things");
+        
         let mut explanation = create_support(&context.as_readonly(), profile, pointwise_timepoint, underlying_type);
         explanation.add(create_pointwise_predicate_propagating_task_lower_bound_propagation(propagating_task, Some(pointwise_timepoint)));
 
+        pumpkin_assert_simple!(explanation.len() >= 1, "Empty explanations may mess up the trail");
+        
         let mut is_first = false;
         
         let key = MapToLiteral::new(true, global_id, convert_profile_to_raw_ids(profile));
+        // dbg!(&key, context.free_literals.len());
+        // dbg!(cache.keys().collect::<Vec<_>>());
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
-
+        dbg!(literal.get_id());
         pumpkin_assert_simple!(context.lower_bound(literal) >= 0, "We are about to set this literal to true so there is no way it can currently be false.");
         context.assign_literal(literal, true, explanation)?;
         
-        // Start >= min(end of conflicts)
 
         if is_first {
             let true_propagator = LargerOrEqualMinimumPropagator::new(
@@ -81,7 +88,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             let cur_id = context.propagator_id;
             context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
-            let result = new_propagators.prop1.propagator.propagate_directly(context);
+            let result = new_propagators.prop1.propagator.propagate_directly(context, profile.end + 1);
 
 
             // Note that the assert may fail if it is equals.
@@ -101,8 +108,9 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
             let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
 
+            pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators with reification requires the literal to be set to true");
             context.with_reification(*literal);
-            let result = true_propagator.propagate_directly(context);
+            let result = true_propagator.propagate_directly(context, profile.end + 1);
 
             match result {
                 Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
@@ -111,7 +119,6 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             }
             context.without_reification();
         }
-        
     }
 
     Ok(())
@@ -133,15 +140,20 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
         let pointwise_timepoint = profile.start
             .max(context.upper_bound(&propagating_task.start_variable));
 
+        pumpkin_assert_simple!(profile.profile_tasks.len() >= 1, "Empty profiles do weird things");
+        
         let mut explanation = create_support(&context.as_readonly(), profile, pointwise_timepoint, underlying_type);
         explanation.add(create_pointwise_predicate_propagating_task_upper_bound_propagation(propagating_task, Some(pointwise_timepoint)));
 
+        pumpkin_assert_simple!(explanation.len() >= 1, "Empty explanations may mess up the trail");
+        
         let mut is_first = false;
 
         let key = MapToLiteral::new(false, global_id, convert_profile_to_raw_ids(profile));
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
 
         pumpkin_assert_simple!(context.lower_bound(literal) >= 0, "We are about to set this literal to true so there is no way it can currently be false.");
+        dbg!(literal.get_id());
         context.assign_literal(literal, true, explanation)?;
 
         // Start >= min(end of conflicts)
@@ -175,9 +187,8 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             let cur_id = context.propagator_id;
             context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
-            let result = new_propagators.prop1.propagator.propagate_directly(context);
+            let result = new_propagators.prop1.propagator.propagate_directly(context, -(profile.start - propagating_task.processing_time));
             match result {
-                Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
                 Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
                 _ => {pumpkin_assert_simple!(context.upper_bound(&propagating_task.start_variable) <= profile.start - propagating_task.processing_time, "Propagation did not happen in accordance to the timetable");}
             }
@@ -189,11 +200,11 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
             let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
 
+            pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators with reification requires the literal to be set to true");
             context.with_reification(*literal);
-            let result = true_propagator.propagate_directly(context);
+            let result = true_propagator.propagate_directly(context, -(profile.start - propagating_task.processing_time));
 
             match result {
-                Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
                 Err(_) => {panic!("This propagation function is not allowed to raise a conflict. (timetable API does not support it)")}
                 _ => {pumpkin_assert_simple!(context.upper_bound(&propagating_task.start_variable) <= profile.start - propagating_task.processing_time, "Propagation did not happen in accordance to the timetable");}
             }

@@ -131,10 +131,11 @@ impl RecursiveMinimiser {
 
         for antecedent_predicate in reason.iter().copied() {
             // Root assignments can be safely ignored.
+            dbg!(&antecedent_predicate);
             if context
                 .assignments
                 .get_decision_level_for_predicate(&antecedent_predicate)
-                .unwrap()
+                .expect("Some predicate has no decision level")
                 == 0
             {
                 continue;

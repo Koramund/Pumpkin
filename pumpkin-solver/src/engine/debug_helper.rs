@@ -221,6 +221,7 @@ impl DebugHelper {
             "Found propagation with predicates which do not hold - Propagator: {}",
             propagator.name()
         );
+        return true;
         // todo: commented out the code below, see if it worth in the new version
         // todo: this function is not used anywhere? Why?
 
