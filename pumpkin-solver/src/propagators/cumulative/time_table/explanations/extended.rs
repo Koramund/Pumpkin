@@ -7,7 +7,7 @@ use crate::propagators::cumulative::time_table::explanations::big_step::{create_
 use crate::propagators::cumulative::time_table::explanations::naive::{create_naive_conflict_explanation, create_naive_predicate_propagating_task_lower_bound_propagation, create_naive_predicate_propagating_task_upper_bound_propagation, create_naive_propagation_explanation};
 use crate::propagators::cumulative::time_table::explanations::pointwise::{create_pointwise_conflict_explanation, create_pointwise_predicate_propagating_task_lower_bound_propagation, create_pointwise_predicate_propagating_task_upper_bound_propagation, create_pointwise_propagation_explanation};
 use crate::propagators::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
-use crate::propagators::less_or_equal_minimum::LessOrEqualMinimumPropagator;
+use crate::propagators::less_or_equal_minimum::LessThanMinimumPropagator;
 use crate::propagators::{ReifiedPropagator, ResourceProfile, Task};
 use crate::variables::{AffineView, IntegerVariable, Literal, TransformableVariable};
 use crate::pumpkin_assert_simple;
@@ -55,7 +55,8 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
         // dbg!(cache.keys().collect::<Vec<_>>());
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
         dbg!(literal.get_id());
-        pumpkin_assert_simple!(context.lower_bound(literal) >= 0, "We are about to set this literal to true so there is no way it can currently be false.");
+        pumpkin_assert_simple!(!context.is_literal_false(literal), "The literal was already set to false however timetable says it should be true, verify the inconsistency detection");
+        pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
         context.assign_literal(literal, true, explanation)?;
         
 
@@ -63,8 +64,8 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             let true_propagator = LargerOrEqualMinimumPropagator::new(
                 propagating_task.start_variable.clone().scaled(1),
                 profile.profile_tasks.iter().map(|x| x.start_variable.offset(x.processing_time)).collect());
-            let false_propagator = LessOrEqualMinimumPropagator::new(
-                propagating_task.start_variable.clone().offset(-1),
+            let false_propagator = LessThanMinimumPropagator::new(
+                propagating_task.start_variable.clone().scaled(1),
                 profile.profile_tasks.iter().map(|x| x.start_variable.offset(x.processing_time)).collect());
             let _ = LITERAL_TO_PROPAGATORS.lock().unwrap().insert(*literal, true_propagator.clone());
             
@@ -81,7 +82,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             );
 
             // TODO the init may fail and that is not allowed.
-            pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators we just created requires the literal to be set to true");
+            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
             new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize, was the timetable consistent?");
             new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize, was the timetable consistent?");
             
@@ -108,7 +109,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
             let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
 
-            pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators with reification requires the literal to be set to true");
+            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators with reification requires the literal to be set to true");
             context.with_reification(*literal);
             let result = true_propagator.propagate_directly(context, profile.end + 1);
 
@@ -152,7 +153,8 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
         let key = MapToLiteral::new(false, global_id, convert_profile_to_raw_ids(profile));
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
 
-        pumpkin_assert_simple!(context.lower_bound(literal) >= 0, "We are about to set this literal to true so there is no way it can currently be false.");
+        pumpkin_assert_simple!(!context.is_literal_false(literal), "The literal was already set to false however timetable says it should be true, verify the inconsistency detection");
+        pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
         dbg!(literal.get_id());
         context.assign_literal(literal, true, explanation)?;
 
@@ -162,7 +164,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             let true_propagator = LargerOrEqualMinimumPropagator::new(
                 propagating_task.start_variable.scaled(-1),
                 profile.profile_tasks.iter().map(|x| x.start_variable.offset(-propagating_task.processing_time).scaled(-1)).collect());
-            let false_propagator = LessOrEqualMinimumPropagator::new(
+            let false_propagator = LessThanMinimumPropagator::new(
                 propagating_task.start_variable.offset(1).scaled(-1),
                 profile.profile_tasks.iter().map(|x| x.start_variable.offset(-propagating_task.processing_time).scaled(-1)).collect());
             let _ = LITERAL_TO_PROPAGATORS.lock().unwrap().insert(*literal, true_propagator.clone());
@@ -180,7 +182,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             );
 
             // TODO we need to look at these inits. The expect should be removed as it is below.
-            pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators we just created requires the literal to be set to true");
+            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
             new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize, was the timetable consistent?");
             new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize, was the timetable consistent?");
 
@@ -200,7 +202,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
             let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
 
-            pumpkin_assert_simple!(context.lower_bound(literal) >= 1, "Propagating propagators with reification requires the literal to be set to true");
+            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators with reification requires the literal to be set to true");
             context.with_reification(*literal);
             let result = true_propagator.propagate_directly(context, -(profile.start - propagating_task.processing_time));
 
