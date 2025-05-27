@@ -101,6 +101,38 @@ impl TestSolver {
         Ok(id)
     }
 
+    pub(crate) fn new_propagator_non_fixpoint(
+        &mut self,
+        propagator: impl Propagator + 'static,
+    ) -> Result<PropagatorId, Inconsistency> {
+        let propagator: Box<dyn Propagator> = Box::new(propagator);
+        let id = self.propagator_store.alloc(propagator, None);
+
+        self.propagator_store[id].initialise_at_root(&mut PropagatorInitialisationContext::new(
+            &mut self.watch_list,
+            &mut self.stateful_assignments,
+            id,
+            &mut self.assignments,
+        ))?;
+        let mut vec = vec![];
+        let mut vec2 = vec![];
+        let mut vec3 = vec![];
+        let context = PropagationContextMut::new(
+            &mut self.stateful_assignments,
+            &mut self.assignments,
+            &mut self.reason_store,
+            &mut self.semantic_minimiser,
+            PropagatorId(0),
+            &mut self.watch_list,
+            &mut self.variable_names,
+            &mut vec,
+            &mut vec2,
+            &mut vec3,
+        );
+
+        Ok(id)
+    }
+    
     pub(crate) fn contains<Var: IntegerVariable>(&self, var: Var, value: i32) -> bool {
         var.contains(&self.assignments, value)
     }
@@ -131,6 +163,10 @@ impl TestSolver {
                     .unwrap(),
             ),
         )
+    }
+    
+    pub(crate) fn detect_inconsistency(&mut self, propagator: PropagatorId) -> Option<PropositionalConjunction> {
+        self.propagator_store[propagator].detect_inconsistency(StatefulPropagationContext::new(&mut self.stateful_assignments, &self.assignments))
     }
 
     pub(crate) fn decrease_upper_bound_and_notify(
