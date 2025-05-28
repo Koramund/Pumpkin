@@ -28,14 +28,13 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
         }
     }
 
-    pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut, bound: i32) -> PropagationStatusCP {
+    pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
-        pumpkin_assert_simple!(context.lower_bound(restrictor) >= bound, "The timetable profile is stricter than the propagator.");
-        if bound > context.lower_bound(&self.lhs) {
+        if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
             context.set_lower_bound(
                 &self.lhs,
-                bound,
-                conjunction!([restrictor >= bound]))?
+                context.lower_bound(restrictor),
+                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
         }
         Ok(())
     }
@@ -111,7 +110,6 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::propagation::EnqueueDecision;
     use crate::engine::test_solver::TestSolver;
     use crate::propagators::arithmetic::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
     use crate::{conjunction, predicate};
