@@ -1470,7 +1470,6 @@ impl ConstraintSatisfactionSolver {
         // TODO enqueuing probably not required.
         self.propagator_queue.enqueue_propagator(propagator_id, new_propagator.priority());
 
-        self.propagate();
         Ok(())
     }
     
