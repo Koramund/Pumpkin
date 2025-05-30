@@ -59,7 +59,6 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
         //     dbg!(context.lower_bound(&propagating_task.start_variable), profile.end+1, profile.profile_tasks.iter().map(|x| context.lower_bound(&x.start_variable) + x.processing_time).collect_vec());
         // }
         // pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
-        context.assign_literal(literal, true, explanation)?;
 
         let cur_id = context.propagator_id;
         if is_first {
@@ -84,10 +83,11 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             );
 
             // TODO the init may fail and that is not allowed.
-            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
             new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize. As this was not done via root level please do errors via propagation.");
             new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize. As this was not done via root level please do errors via propagation.");
-            
+            context.assign_literal(literal, true, explanation)?;
+
+            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
             context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
             let result = new_propagators.prop1.propagator.propagate_directly(context);
@@ -103,6 +103,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             context.cumulative_literals.push(new_propagators)
             
         }  else {
+            context.assign_literal(literal, true, explanation)?;
             let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
             let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
 
@@ -154,7 +155,6 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
 
         // TODO If the literal was set to true then something has gone wrong as we propagate optimally. (delete this assertion in the non optimal case where propagate directly goes to a bound)
         // pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
-        context.assign_literal(literal, true, explanation)?;
 
         let cur_id = context.propagator_id;
         if is_first {
@@ -179,10 +179,12 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             );
 
             // TODO we need to look at these inits. The expect should be removed as it is below.
-            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
             new_propagators.prop1.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id1)).expect("Prop 1 failed to initialize. As this was not done via root level please do errors via propagation.");
             new_propagators.prop2.initialise_at_root(&mut context.as_initialisation_context(new_propagators.id2)).expect("Prop 2 failed to initialize. As this was not done via root level please do errors via propagation.");
-            
+
+            context.assign_literal(literal, true, explanation)?;
+
+            pumpkin_assert_simple!(context.is_literal_true(literal), "Propagating propagators we just created requires the literal to be set to true");
             context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
             let result = new_propagators.prop1.propagator.propagate_directly(context);
@@ -195,6 +197,8 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
 
             context.cumulative_literals.push(new_propagators)
         } else {
+            context.assign_literal(literal, true, explanation)?;
+            
             let map = LITERAL_TO_PROPAGATORS.lock().unwrap();
             let true_propagator = map.get(literal).expect("Since it is not the first time this literal is queried it should have a key in this map");
 
