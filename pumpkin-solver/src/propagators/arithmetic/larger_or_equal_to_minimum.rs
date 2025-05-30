@@ -1,6 +1,7 @@
+use std::io::Read;
 use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
-use crate::{conjunction, pumpkin_assert_simple};
+use crate::{conjunction, predicate, pumpkin_assert_simple};
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
@@ -104,9 +105,10 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
     ) -> Option<PropositionalConjunction> {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.upper_bound(&self.lhs) {
-            Some(conjunction!(
-                [restrictor >= context.lower_bound(restrictor)] &
-                [self.lhs <= context.upper_bound(&self.lhs)]))
+            Some(
+                self.array.iter().map(|x| predicate![x >= context.lower_bound(x)]).chain(
+                    std::iter::once(predicate![self.lhs <= context.upper_bound(&self.lhs)])).collect()
+                )
         } else {
             None
         }
