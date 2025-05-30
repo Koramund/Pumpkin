@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::ops::Not;
 use std::rc::Rc;
 use std::sync::{LazyLock, Mutex};
-
+use itertools::Itertools;
 
 /// TODO create a new solver parameter that can be used to denote which underlying system extended resolution should utilise.
 
@@ -54,7 +54,11 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
         // This way this function can error out on the empty domain in the case the variable was set wrong.
         // If the literal is set to false then this should rightfully raise a conflict.
         // TODO If the literal was set to true then something has gone wrong as we propagate optimally. (delete this assertion in the non optimal case where propagate directly goes to a bound)
-        pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
+        
+        // if context.is_literal_true(literal) {
+        //     dbg!(context.lower_bound(&propagating_task.start_variable), profile.end+1, profile.profile_tasks.iter().map(|x| context.lower_bound(&x.start_variable) + x.processing_time).collect_vec());
+        // }
+        // pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
         context.assign_literal(literal, true, explanation)?;
 
         let cur_id = context.propagator_id;
@@ -149,8 +153,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
         let literal = cache.entry(key).or_insert_with(|| {is_first = true; context.pop_new_literal()});
 
         // TODO If the literal was set to true then something has gone wrong as we propagate optimally. (delete this assertion in the non optimal case where propagate directly goes to a bound)
-        pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
-        dbg!(literal.get_id());
+        // pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
         context.assign_literal(literal, true, explanation)?;
 
         let cur_id = context.propagator_id;

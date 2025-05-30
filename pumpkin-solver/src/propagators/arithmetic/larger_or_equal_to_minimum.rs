@@ -1,4 +1,4 @@
-use crate::basic_types::PropagationStatusCP;
+use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
 use crate::{conjunction, pumpkin_assert_simple};
 use crate::engine::cp::propagation::ReadDomains;
@@ -60,7 +60,7 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
             DomainEvents::UPPER_BOUND,
             LocalId::from(self.array.len() as u32),
         );
-        
+
         match self.detect_inconsistency(context.as_stateful_readonly()) {
             None => {Ok(())}
             Some(conflict) => {Err(PropositionalConjunction::from(conflict))}
@@ -75,6 +75,11 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         &self,
         mut context: PropagationContextMut,
     ) -> PropagationStatusCP {
+        match self.detect_inconsistency(context.as_stateful_readonly()) {
+            None => {}
+            Some(conflict) => {return Err(Inconsistency::from(PropositionalConjunction::from(conflict)))}
+        }
+        
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
             context.set_lower_bound(
