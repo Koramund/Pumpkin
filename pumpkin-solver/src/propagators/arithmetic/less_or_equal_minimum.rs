@@ -82,7 +82,7 @@ for LessThanMinimumPropagator<Lhs, Var>
         Ok(())
     }
 
-    fn notify(&mut self, mut context: StatefulPropagationContext, local_id: LocalId, event: OpaqueDomainEvent) -> EnqueueDecision {
+    fn notify(&mut self, _context: StatefulPropagationContext, _local_id: LocalId, _event: OpaqueDomainEvent) -> EnqueueDecision {
         EnqueueDecision::Enqueue
     }
 

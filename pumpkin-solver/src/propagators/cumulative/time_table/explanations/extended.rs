@@ -1,6 +1,6 @@
 use crate::basic_types::cumulative_literal::{CumulativeExtendedType, CumulativeLiteral, MapToLiteral};
-use crate::basic_types::{Inconsistency, PropagationStatusCP, PropositionalConjunction};
-use crate::engine::propagation::{PropagationContext, PropagationContextMut, Propagator, PropagatorId, ReadDomains};
+use crate::basic_types::{Inconsistency, PropositionalConjunction};
+use crate::engine::propagation::{PropagationContext, PropagationContextMut, Propagator, ReadDomains};
 use crate::engine::EmptyDomain;
 use crate::predicates::Predicate;
 use crate::propagators::cumulative::time_table::explanations::big_step::{create_big_step_conflict_explanation, create_big_step_predicate_propagating_task_lower_bound_propagation, create_big_step_predicate_propagating_task_upper_bound_propagation, create_big_step_propagation_explanation};
@@ -9,13 +9,12 @@ use crate::propagators::cumulative::time_table::explanations::pointwise::{create
 use crate::propagators::larger_or_equal_to_minimum::LargerOrEqualMinimumPropagator;
 use crate::propagators::less_or_equal_minimum::LessThanMinimumPropagator;
 use crate::propagators::{ReifiedPropagator, ResourceProfile, Task};
-use crate::variables::{AffineView, IntegerVariable, Literal, TransformableVariable};
 use crate::pumpkin_assert_simple;
+use crate::variables::{AffineView, IntegerVariable, Literal, TransformableVariable};
 use std::collections::HashMap;
 use std::ops::Not;
 use std::rc::Rc;
 use std::sync::{LazyLock, Mutex};
-use itertools::Itertools;
 
 /// TODO create a new solver parameter that can be used to denote which underlying system extended resolution should utilise.
 

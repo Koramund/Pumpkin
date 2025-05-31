@@ -1,4 +1,4 @@
-use crate::variables::{AffineView, DomainId};
+use crate::variables::AffineView;
 
 /// Trait for transforming a variable.
 ///

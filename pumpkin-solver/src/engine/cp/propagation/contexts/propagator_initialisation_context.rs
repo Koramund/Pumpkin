@@ -46,13 +46,13 @@ impl PropagatorInitialisationContext<'_> {
         }
     }
     
-    pub(crate) fn create_new_literal(&mut self,) -> Literal {
-        let domain_id = self.create_new_integer_variable(0, 1);
+    pub(crate) fn _create_new_literal(&mut self,) -> Literal {
+        let domain_id = self._create_new_integer_variable(0, 1);
         Literal::new(domain_id)
     }
 
     /// Create a new integer variable. Its domain will have the given lower and upper bounds.
-    pub(crate) fn create_new_integer_variable(
+    pub(crate) fn _create_new_integer_variable(
         &mut self,
         lower_bound: i32,
         upper_bound: i32,
