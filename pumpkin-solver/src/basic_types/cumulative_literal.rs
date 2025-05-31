@@ -7,7 +7,7 @@ use crate::engine::propagation::PropagatorId;
 
 type Affine = AffineView;
 type ReifiedLE = ReifiedPropagator<LessThanMinimumPropagator<Affine, Affine>>;
-pub type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine>>;
+pub(crate) type ReifiedGE = ReifiedPropagator<LargerOrEqualMinimumPropagator<Affine, Affine>>;
 
 /// They are given separate var definitions as Var1 may not be an affineView but Var2 may be and vice versa
 /// This depends on the shift they have partaken in

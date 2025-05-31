@@ -7,13 +7,12 @@ use crate::engine::reason::ReasonStore;
 use crate::engine::reason::StoredReason;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::variables::Literal;
-use crate::engine::{Assignments, WatchListCP};
 use crate::engine::EmptyDomain;
 use crate::engine::TrailedAssignments;
 use crate::engine::TrailedInt;
+use crate::engine::{Assignments, WatchListCP};
 use crate::pumpkin_assert_simple;
 use crate::variable_names::VariableNames;
-use crate::variables::DomainId;
 
 pub(crate) struct StatefulPropagationContext<'a> {
     pub(crate) stateful_assignments: &'a mut TrailedAssignments,

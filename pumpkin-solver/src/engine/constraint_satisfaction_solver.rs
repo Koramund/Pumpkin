@@ -3,7 +3,6 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::num::NonZero;
-use std::ops::IndexMut;
 use std::time::Instant;
 
 use clap::ValueEnum;
@@ -26,10 +25,10 @@ use super::variables::IntegerVariable;
 use super::variables::Literal;
 use super::ResolutionResolver;
 use super::TrailedAssignments;
+use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::CSPSolverExecutionFlag;
 use crate::basic_types::ConstraintOperationError;
-use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::basic_types::HashMap;
 use crate::basic_types::Inconsistency;
 use crate::basic_types::PropositionalConjunction;
