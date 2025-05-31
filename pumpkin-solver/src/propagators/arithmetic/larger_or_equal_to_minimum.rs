@@ -1,16 +1,15 @@
-use std::io::Read;
-use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::basic_types::PropositionalConjunction;
-use crate::{conjunction, predicate, pumpkin_assert_simple};
+use crate::basic_types::{Inconsistency, PropagationStatusCP};
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
-use crate::engine::propagation::contexts::{ManipulateStatefulIntegers, StatefulPropagationContext};
-use crate::engine::propagation::{EnqueueDecision, PropagationContextMut};
+use crate::engine::propagation::contexts::StatefulPropagationContext;
+use crate::engine::propagation::LocalId;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorInitialisationContext;
-use crate::engine::propagation::LocalId;
+use crate::engine::propagation::{EnqueueDecision, PropagationContextMut};
 use crate::engine::variables::IntegerVariable;
+use crate::predicate;
 
 //TODO still need to run this with the highest level of assertions.
 
@@ -32,10 +31,12 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
     pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
+            let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x >= context.lower_bound(restrictor)]).collect();
             context.set_lower_bound(
                 &self.lhs,
                 context.lower_bound(restrictor),
-                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
+                reason
+            )?
         }
         Ok(())
     }
@@ -56,6 +57,7 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
             );
         });
 
+        // Note that we do not need to register for BOUNDS as the reified calls find_inconsistency
         let _ = context.register(
             self.lhs.clone(),
             DomainEvents::UPPER_BOUND,
@@ -80,13 +82,15 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
             None => {}
             Some(conflict) => {return Err(Inconsistency::from(PropositionalConjunction::from(conflict)))}
         }
-        
+
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
+            let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x >= context.lower_bound(restrictor)]).collect();
             context.set_lower_bound(
                 &self.lhs,
                 context.lower_bound(restrictor),
-                conjunction!([restrictor >= context.lower_bound(restrictor)]))?
+                reason
+            )?
         }
         Ok(())
     }
@@ -106,6 +110,8 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.upper_bound(&self.lhs) {
             Some(
+                // TODO test 2 versions to see if we might be able to get away with lower_bound(x).
+                // TODO this restrictor instead of x, might be detrimental.
                 self.array.iter().map(|x| predicate![x >= context.lower_bound(x)]).chain(
                     std::iter::once(predicate![self.lhs <= context.upper_bound(&self.lhs)])).collect()
                 )
