@@ -1272,7 +1272,7 @@ impl ConstraintSatisfactionSolver {
                     }
                 },
             }
-            pumpkin_assert_simple!(
+            pumpkin_assert_extreme!(
                 DebugHelper::debug_check_propagations(
                     num_trail_entries_before,
                     propagator_id,
