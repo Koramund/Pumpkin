@@ -59,7 +59,6 @@ use crate::engine::RestartOptions;
 use crate::engine::RestartStrategy;
 use crate::predicate;
 use crate::proof::ProofLog;
-use crate::proof::RootExplanationContext;
 use crate::propagators::dummy::DummyPropagator;
 use crate::propagators::nogoods::LearningOptions;
 use crate::propagators::nogoods::NogoodPropagator;
@@ -1221,7 +1220,7 @@ impl ConstraintSatisfactionSolver {
                 let _ = self.add_valid_intialised_propagator_during_search(lit.prop2, lit.id2);
             }
             
-            if self.assignments.get_decision_level() == 0 {
+            if self.assignments.get_decision_level() == 0 && self.internal_parameters.proof_log.is_logging_inferences() {
                 self.log_root_propagation_to_proof(num_trail_entries_before, tag);
             }
             match propagation_status {
@@ -1508,10 +1507,6 @@ impl ConstraintSatisfactionSolver {
     }
 
     pub fn add_nogood(&mut self, nogood: Vec<Predicate>) -> Result<(), ConstraintOperationError> {
-        pumpkin_assert_eq_simple!(self.get_decision_level(), 0);
-        let num_trail_entries = self.assignments.num_trail_entries();
-
-        
         let mut vec = vec![];
         let mut propagation_context = PropagationContextMut::new(
             &mut self.stateful_assignments,
