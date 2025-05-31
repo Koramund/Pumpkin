@@ -74,10 +74,13 @@ for LessThanMinimumPropagator<Lhs, Var>
         // get the lowest LCT
         let restrictor = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.upper_bound(restrictor) <= context.upper_bound(&self.lhs) {
+            let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x <= context.upper_bound(x)]).chain(
+                std::iter::once(predicate![self.lhs >= context.lower_bound(&self.lhs)])).collect();
             context.set_upper_bound(
                 &self.lhs,
                 context.upper_bound(restrictor) - 1,
-                conjunction!([restrictor <= context.upper_bound(restrictor)]))?
+                reason,
+            )?
         }
         Ok(())
     }
