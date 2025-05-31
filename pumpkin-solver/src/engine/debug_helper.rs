@@ -11,7 +11,7 @@ use super::predicates::predicate::Predicate;
 use super::propagation::store::PropagatorStore;
 use super::propagation::ExplanationContext;
 use super::reason::ReasonStore;
-use super::ConstraintSatisfactionSolver;
+use super::{ConstraintSatisfactionSolver, WatchListCP};
 use super::TrailedAssignments;
 use crate::basic_types::Inconsistency;
 use crate::basic_types::PropositionalConjunction;
@@ -19,6 +19,7 @@ use crate::engine::cp::Assignments;
 use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::Propagator;
 use crate::engine::propagation::PropagatorId;
+use crate::variable_names::VariableNames;
 
 #[derive(Copy, Clone)]
 pub(crate) struct DebugDyn<'a> {
@@ -53,9 +54,11 @@ impl DebugHelper {
         stateful_assignments: &TrailedAssignments,
         assignments: &Assignments,
         propagators: &PropagatorStore,
+        watch_list_cp: &WatchListCP,
     ) -> bool {
         let mut assignments_clone = assignments.clone();
         let mut stateful_assignments_clone = stateful_assignments.clone();
+        let mut watch_list_clone = watch_list_cp.clone();
         // Check whether constraint programming propagators missed anything
         //
         //  It works by asking each propagator to propagate from scratch, and checking whether any
@@ -75,12 +78,21 @@ impl DebugHelper {
 
             let mut reason_store = Default::default();
             let mut semantic_minimiser = SemanticMinimiser::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
                 &mut reason_store,
                 &mut semantic_minimiser,
                 PropagatorId(propagator_id as u32),
+                &mut watch_list_clone,
+                &mut variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
             let propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -122,6 +134,7 @@ impl DebugHelper {
         failure_reason: &PropositionalConjunction,
         propagator: &dyn Propagator,
         propagator_id: PropagatorId,
+        watch_list_cp: &WatchListCP,
     ) -> bool {
         DebugHelper::debug_reported_propagations_reproduce_failure(
             stateful_assignments,
@@ -129,6 +142,7 @@ impl DebugHelper {
             failure_reason,
             propagator,
             propagator_id,
+            watch_list_cp,
         );
 
         DebugHelper::debug_reported_propagations_negate_failure_and_check(
@@ -137,6 +151,7 @@ impl DebugHelper {
             failure_reason,
             propagator,
             propagator_id,
+            watch_list_cp,
         );
         true
     }
@@ -154,6 +169,7 @@ impl DebugHelper {
         assignments: &Assignments,
         reason_store: &mut ReasonStore,
         propagators: &mut PropagatorStore,
+        watch_list_cp: &WatchListCP,
     ) -> bool {
         if propagator_id == ConstraintSatisfactionSolver::get_nogood_propagator_id() {
             return true;
@@ -179,6 +195,7 @@ impl DebugHelper {
                 assignments,
                 &propagators[propagator_id],
                 propagator_id,
+                watch_list_cp,
             );
         }
         result
@@ -191,6 +208,7 @@ impl DebugHelper {
         assignments: &Assignments,
         propagator: &dyn Propagator,
         propagator_id: PropagatorId,
+        watch_list_cp: &WatchListCP,
     ) -> bool {
         if propagator.name() == "NogoodPropagator" {
             return true;
@@ -203,8 +221,6 @@ impl DebugHelper {
             "Found propagation with predicates which do not hold - Propagator: {}",
             propagator.name()
         );
-        // todo: commented out the code below, see if it worth in the new version
-        // todo: this function is not used anywhere? Why?
 
         // Note that it could be the case that the reason contains the trivially false predicate in
         // case of lifting!
@@ -219,6 +235,7 @@ impl DebugHelper {
         {
             let mut assignments_clone = assignments.debug_create_empty_clone();
             let mut stateful_assignments_clone = stateful_assignments.debug_create_empty_clone();
+            let mut watch_list_clone = watch_list_cp.clone();
 
             let reason_predicates: Vec<Predicate> = reason.to_vec();
             let adding_predicates_was_successful = DebugHelper::debug_add_predicates_to_assignments(
@@ -230,12 +247,21 @@ impl DebugHelper {
                 // Now propagate using the debug propagation method.
                 let mut reason_store = Default::default();
                 let mut semantic_minimiser = SemanticMinimiser::default();
+                let mut variable_names = VariableNames::default();
+                let mut vec = vec![];
+                let mut vec2 = vec![];
+                let mut vec3 = vec![];
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
                     &mut reason_store,
                     &mut semantic_minimiser,
                     propagator_id,
+                    &mut watch_list_clone,
+                    &mut variable_names,
+                    &mut vec,
+                    &mut vec2,
+                    &mut vec3,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -316,6 +342,7 @@ impl DebugHelper {
         {
             let mut assignments_clone = assignments.debug_create_empty_clone();
             let mut stateful_assignments_clone = stateful_assignments.debug_create_empty_clone();
+            let mut watch_list_clone = watch_list_cp.clone();
 
             let failing_predicates: Vec<Predicate> = once(!propagated_predicate)
                 .chain(reason.iter().copied())
@@ -340,13 +367,22 @@ impl DebugHelper {
                 // have led to a new mandatory part in the next call to the propagator
                 loop {
                     let num_predicates_before = assignments_clone.num_trail_entries();
-
+                    
+                    let mut variable_names = VariableNames::default();
+                    let mut vec = vec![];
+                    let mut vec2 = vec![];
+                    let mut vec3 = vec![];
                     let context = PropagationContextMut::new(
                         &mut stateful_assignments_clone,
                         &mut assignments_clone,
                         &mut reason_store,
                         &mut semantic_minimiser,
                         propagator_id,
+                        &mut watch_list_clone,
+                        &mut variable_names,
+                        &mut vec,
+                        &mut vec2,
+                        &mut vec3,
                     );
                     let debug_propagation_status_cp =
                         propagator.debug_propagate_from_scratch(context);
@@ -387,12 +423,14 @@ impl DebugHelper {
         failure_reason: &PropositionalConjunction,
         propagator: &dyn Propagator,
         propagator_id: PropagatorId,
+        watch_list_cp: &WatchListCP,
     ) {
         if propagator.name() == "NogoodPropagator" {
             return;
         }
         let mut assignments_clone = assignments.debug_create_empty_clone();
         let mut stateful_assignments_clone = stateful_assignments.debug_create_empty_clone();
+        let mut watch_list_clone = watch_list_cp.clone();
 
         let reason_predicates: Vec<Predicate> = failure_reason.iter().copied().collect();
         let adding_predicates_was_successful = DebugHelper::debug_add_predicates_to_assignments(
@@ -404,12 +442,21 @@ impl DebugHelper {
             //  now propagate using the debug propagation method
             let mut reason_store = Default::default();
             let mut semantic_minimiser = SemanticMinimiser::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
                 &mut reason_store,
                 &mut semantic_minimiser,
                 propagator_id,
+                &mut watch_list_clone,
+                &mut variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
             let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
             assert!(
@@ -435,6 +482,7 @@ impl DebugHelper {
         failure_reason: &PropositionalConjunction,
         propagator: &dyn Propagator,
         propagator_id: PropagatorId,
+        watch_list_cp: &WatchListCP,
     ) {
         // The nogood propagator is special, so the code below does not necessarily hold.
         // This is because the propagator gets updated during solving.
@@ -458,6 +506,7 @@ impl DebugHelper {
         for predicate in &reason_predicates {
             let mut assignments_clone = assignments.debug_create_empty_clone();
             let mut stateful_assignments_clone = stateful_assignments.debug_create_empty_clone();
+            let mut watch_list_clone = watch_list_cp.clone();
 
             let negated_predicate = predicate.not();
             let outcome = assignments_clone.post_predicate(negated_predicate, None);
@@ -465,12 +514,21 @@ impl DebugHelper {
             if outcome.is_ok() {
                 let mut reason_store = Default::default();
                 let mut semantic_minimiser = SemanticMinimiser::default();
+                let mut variable_names = VariableNames::default();
+                let mut vec = vec![];
+                let mut vec2 = vec![];
+                let mut vec3 = vec![];
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
                     &mut reason_store,
                     &mut semantic_minimiser,
                     propagator_id,
+                    &mut watch_list_clone,
+                    &mut variable_names,
+                    &mut vec,
+                    &mut vec2,
+                    &mut vec3,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 

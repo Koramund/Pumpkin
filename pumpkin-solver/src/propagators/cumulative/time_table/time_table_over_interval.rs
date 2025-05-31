@@ -1,5 +1,4 @@
 use std::rc::Rc;
-
 use super::time_table_util::propagate_based_on_timetable;
 use super::time_table_util::should_enqueue;
 use crate::basic_types::PropagationStatusCP;
@@ -340,6 +339,7 @@ fn create_time_table_from_events<Var: IntegerVariable + 'static, Context: ReadDo
                         context,
                         &new_profile,
                         parameters.options.explanation_type,
+                        parameters.options.extended_type
                     ));
                 } else {
                     // We end the current profile, creating a profile from [start_of_interval,

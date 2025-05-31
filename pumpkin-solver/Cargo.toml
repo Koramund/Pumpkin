@@ -44,3 +44,6 @@ debug-checks = []
 
 [build-dependencies]
 cc = "1.1.30"
+
+[profile.release]
+debug = true

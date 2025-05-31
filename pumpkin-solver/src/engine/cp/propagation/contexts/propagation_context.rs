@@ -1,16 +1,18 @@
+use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::engine::conflict_analysis::SemanticMinimiser;
 use crate::engine::predicates::predicate::Predicate;
-use crate::engine::propagation::PropagatorId;
+use crate::engine::propagation::{PropagatorId, PropagatorInitialisationContext};
 use crate::engine::reason::Reason;
 use crate::engine::reason::ReasonStore;
 use crate::engine::reason::StoredReason;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::variables::Literal;
-use crate::engine::Assignments;
 use crate::engine::EmptyDomain;
 use crate::engine::TrailedAssignments;
 use crate::engine::TrailedInt;
+use crate::engine::{Assignments, WatchListCP};
 use crate::pumpkin_assert_simple;
+use crate::variable_names::VariableNames;
 
 pub(crate) struct StatefulPropagationContext<'a> {
     pub(crate) stateful_assignments: &'a mut TrailedAssignments,
@@ -62,6 +64,11 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) propagator_id: PropagatorId,
     pub(crate) semantic_minimiser: &'a mut SemanticMinimiser,
     reification_literal: Option<Literal>,
+    pub(crate) watch_list_cp: &'a mut WatchListCP,
+    pub(crate) _variable_names: &'a mut VariableNames,
+    pub(crate) cumulative_literals: &'a mut Vec<CumulativeLiteral>,
+    pub(crate) free_literals: &'a mut Vec<Literal>,
+    pub(crate) free_propagator_ids: &'a mut Vec<PropagatorId>,
 }
 
 impl<'a> PropagationContextMut<'a> {
@@ -71,6 +78,11 @@ impl<'a> PropagationContextMut<'a> {
         reason_store: &'a mut ReasonStore,
         semantic_minimiser: &'a mut SemanticMinimiser,
         propagator_id: PropagatorId,
+        watch_list_cp: &'a mut WatchListCP,
+        _variable_names: &'a mut VariableNames,
+        cumulative_literals: &'a mut Vec<CumulativeLiteral>,
+        free_literals: &'a mut Vec<Literal>,
+        free_propagator_ids: &'a mut Vec<PropagatorId>,
     ) -> Self {
         PropagationContextMut {
             stateful_assignments,
@@ -79,9 +91,47 @@ impl<'a> PropagationContextMut<'a> {
             propagator_id,
             semantic_minimiser,
             reification_literal: None,
+            watch_list_cp,
+            _variable_names,
+            cumulative_literals,
+            free_literals,
+            free_propagator_ids,
         }
     }
+    
+    // pub(crate) fn shallow_clone(&mut self, id: PropagatorId) -> Self {
+    //     PropagationContextMut {
+    //         stateful_assignments: self.stateful_assignments,
+    //         assignments: self.assignments,
+    //         reason_store: self.reason_store,
+    //         semantic_minimiser: self.semantic_minimiser,
+    //         propagator_id: id,
+    //         reification_literal: None,
+    //         watch_list_cp: self.watch_list_cp,
+    //         _variable_names: self._variable_names,
+    //         cumulative_literals: self.cumulative_literals,
+    //         free_literals: self.free_literals,
+    //         free_propagator_ids: self.free_propagator_ids,
+    //     }
+    // }
+    
+    pub(crate) fn pop_new_literal(&mut self) -> Literal {
+        self.free_literals.pop().expect("We ran out of new literals for cumulative")
+    }
+    
+    pub(crate) fn pop_new_propagator_id(&mut self) -> PropagatorId {
+        self.free_propagator_ids.pop().expect("We ran out of of propagator ids for cumulative")
+    }
 
+    pub(crate) fn as_initialisation_context(&mut self, propagator_id: PropagatorId) -> PropagatorInitialisationContext {
+        PropagatorInitialisationContext::new(
+            &mut self.watch_list_cp,
+            &mut self.stateful_assignments,
+            propagator_id,
+            &mut self.assignments,
+        )
+    }
+    
     /// Apply a reification literal to all the explanations that are passed to the context.
     pub(crate) fn with_reification(&mut self, reification_literal: Literal) {
         pumpkin_assert_simple!(
@@ -91,6 +141,12 @@ impl<'a> PropagationContextMut<'a> {
 
         self.reification_literal = Some(reification_literal);
     }
+
+    /// Apply a reification literal to all the explanations that are passed to the context.
+    pub(crate) fn without_reification(&mut self) {
+        self.reification_literal = None;
+    }
+    
 
     fn build_reason(&self, reason: Reason) -> StoredReason {
         match reason {

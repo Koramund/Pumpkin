@@ -25,6 +25,7 @@ use super::variables::IntegerVariable;
 use super::variables::Literal;
 use super::ResolutionResolver;
 use super::TrailedAssignments;
+use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::CSPSolverExecutionFlag;
 use crate::basic_types::ConstraintOperationError;
@@ -62,6 +63,7 @@ use crate::proof::finalize_proof;
 use crate::proof::FinalizingContext;
 use crate::proof::ProofLog;
 use crate::proof::RootExplanationContext;
+use crate::propagators::dummy::DummyPropagator;
 use crate::propagators::nogoods::LearningOptions;
 use crate::propagators::nogoods::NogoodPropagator;
 use crate::pumpkin_assert_advanced;
@@ -152,6 +154,10 @@ pub struct ConstraintSatisfactionSolver {
     conflict_resolver: Box<dyn Resolver>,
 
     pub(crate) stateful_assignments: TrailedAssignments,
+    
+    pub(crate) free_literals: Vec<Literal>,
+    pub(crate) free_propagator_ids: Vec<PropagatorId>,
+    
 }
 
 impl Default for ConstraintSatisfactionSolver {
@@ -424,6 +430,8 @@ impl ConstraintSatisfactionSolver {
             },
             internal_parameters: solver_options,
             stateful_assignments: TrailedAssignments::default(),
+            free_literals: vec![],
+            free_propagator_ids: vec![],
         };
 
         // As a convention, the assignments contain a dummy domain_id=0, which represents a 0-1
@@ -502,6 +510,11 @@ impl ConstraintSatisfactionSolver {
         }
     }
 
+    pub fn create_new_hidden_literal(&mut self, name: Option<String>) -> Literal {
+        let domain_id = self.create_new_hidden_integer_variable(0, 1, name);
+        Literal::new(domain_id)
+    }
+    
     pub fn create_new_literal(&mut self, name: Option<String>) -> Literal {
         let domain_id = self.create_new_integer_variable(0, 1, name);
         Literal::new(domain_id)
@@ -526,7 +539,29 @@ impl ConstraintSatisfactionSolver {
 
         literal
     }
+    
+    /// Create a new integer variable. Its domain will have the given lower and upper bounds.
+    pub fn create_new_hidden_integer_variable(
+        &mut self,
+        lower_bound: i32,
+        upper_bound: i32,
+        name: Option<String>,
+    ) -> DomainId {
+        assert!(
+            !self.state.is_inconsistent(),
+            "Variables cannot be created in an inconsistent state"
+        );
 
+        let domain_id = self.assignments.grow_undecidable(lower_bound, upper_bound);
+        self.watch_list_cp.grow();
+
+        if let Some(name) = name {
+            self.variable_names.add_integer(domain_id, name);
+        }
+
+        domain_id
+    }
+    
     /// Create a new integer variable. Its domain will have the given lower and upper bounds.
     pub fn create_new_integer_variable(
         &mut self,
@@ -749,6 +784,7 @@ impl ConstraintSatisfactionSolver {
             "Solver is not expected to be in the infeasible under assumptions state when initialising.
              Missed extracting the core?"
         );
+        
         self.state.declare_solving();
         assumptions.clone_into(&mut self.assumptions);
     }
@@ -974,12 +1010,18 @@ impl ConstraintSatisfactionSolver {
     }
 
     fn add_learned_nogood(&mut self, learned_nogood: LearnedNogood) {
+        let mut vec = vec![];
         let mut context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             Self::get_nogood_propagator_id(),
+            &mut self.watch_list_cp,
+            &mut self.variable_names,
+            &mut vec,
+            &mut self.free_literals,
+            &mut self.free_propagator_ids,
         );
 
         ConstraintSatisfactionSolver::add_asserting_nogood_to_nogood_propagator(
@@ -1165,6 +1207,7 @@ impl ConstraintSatisfactionSolver {
             let tag = self.propagators.get_tag(propagator_id);
             let num_trail_entries_before = self.assignments.num_trail_entries();
 
+            let mut cumulative_literals: Vec<CumulativeLiteral> = vec![];
             let propagation_status = {
                 let propagator = &mut self.propagators[propagator_id];
                 let context = PropagationContextMut::new(
@@ -1173,10 +1216,20 @@ impl ConstraintSatisfactionSolver {
                     &mut self.reason_store,
                     &mut self.semantic_minimiser,
                     propagator_id,
+                    &mut self.watch_list_cp,
+                    &mut self.variable_names,
+                    &mut cumulative_literals,
+                    &mut self.free_literals,
+                    &mut self.free_propagator_ids,
                 );
                 propagator.propagate(context)
             };
-
+            
+            for lit in cumulative_literals.into_iter() {
+                let _ = self.add_valid_intialised_propagator_during_search(lit.prop1, lit.id1);
+                let _ = self.add_valid_intialised_propagator_during_search(lit.prop2, lit.id2);
+            }
+            
             if self.assignments.get_decision_level() == 0 {
                 self.log_root_propagation_to_proof(num_trail_entries_before, tag);
             }
@@ -1200,6 +1253,7 @@ impl ConstraintSatisfactionSolver {
                             &conflict_nogood,
                             &self.propagators[propagator_id],
                             propagator_id,
+                            &self.watch_list_cp,
                         ));
 
                         let stored_conflict_info = StoredConflictInfo::Propagator {
@@ -1218,7 +1272,8 @@ impl ConstraintSatisfactionSolver {
                     &self.stateful_assignments,
                     &self.assignments,
                     &mut self.reason_store,
-                    &mut self.propagators
+                    &mut self.propagators,
+                    &self.watch_list_cp,
                 ),
                 "Checking the propagations performed by the propagator led to inconsistencies!"
             );
@@ -1236,6 +1291,7 @@ impl ConstraintSatisfactionSolver {
                     &self.stateful_assignments,
                     &self.assignments,
                     &self.propagators,
+                    &self.watch_list_cp,
                 )
         );
     }
@@ -1357,6 +1413,19 @@ impl ConstraintSatisfactionSolver {
 
         let new_propagator_id = self.propagators.alloc(Box::new(propagator_to_add), tag);
 
+
+        // reserve a bunch of space for cumulative as runtime creation in pumpkin is broken.
+        if self.free_literals.len() == 0 {
+            for _ in 0..100_000 {
+                // Every literal requires 2 propagators
+                let literal = self.create_new_hidden_literal(None);
+                self.free_literals.push(literal);
+                self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+                self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
+            }
+        }
+
+
         let new_propagator = &mut self.propagators[new_propagator_id];
 
         let mut initialisation_context = PropagatorInitialisationContext::new(
@@ -1393,6 +1462,29 @@ impl ConstraintSatisfactionSolver {
         }
     }
 
+    /// Post a new propagator to the solver.
+    pub(crate) fn add_valid_intialised_propagator_during_search(
+        &mut self,
+        propagator_to_add: impl Propagator + 'static,
+        propagator_id: PropagatorId,
+    ) -> Result<(), ConstraintOperationError> {
+        pumpkin_assert_simple!(
+            propagator_to_add.priority() <= 3,
+            "The propagator priority exceeds 3.
+             Currently we only support values up to 3,
+             but this can easily be changed if there is a good reason."
+        );
+
+        self.propagators.replace(propagator_id, Box::new(propagator_to_add));
+
+        let new_propagator = &mut self.propagators[propagator_id];
+        
+        // TODO enqueuing probably not required.
+        self.propagator_queue.enqueue_propagator(propagator_id, new_propagator.priority());
+
+        Ok(())
+    }
+    
     pub fn post_predicate(&mut self, predicate: Predicate) -> Result<(), ConstraintOperationError> {
         assert!(
             self.get_decision_level() == 0,
@@ -1413,12 +1505,19 @@ impl ConstraintSatisfactionSolver {
         pumpkin_assert_eq_simple!(self.get_decision_level(), 0);
         let num_trail_entries = self.assignments.num_trail_entries();
 
+        
+        let mut vec = vec![];
         let mut propagation_context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             Self::get_nogood_propagator_id(),
+            &mut self.watch_list_cp,
+            &mut self.variable_names,
+            &mut vec,
+            &mut self.free_literals,
+            &mut self.free_propagator_ids,
         );
         let nogood_propagator_id = Self::get_nogood_propagator_id();
 

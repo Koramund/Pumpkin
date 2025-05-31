@@ -13,12 +13,15 @@ use crate::engine::Watchers;
 /// lower-bound ([`IntegerVariable::lower_bound`]) or adjusting the bounds
 /// ([`IntegerVariable::set_lower_bound`]).
 pub trait IntegerVariable:
-    Clone + PredicateConstructor<Value = i32> + TransformableVariable<Self::AffineView>
+    Clone + PredicateConstructor<Value = i32> + TransformableVariable
 {
-    type AffineView: IntegerVariable;
 
+    fn get_id(&self) -> u32;
+    
     /// Get the lower bound of the variable.
     fn lower_bound(&self, assignment: &Assignments) -> i32;
+    
+    fn make_decidable(&mut self);
 
     /// Get the lower bound of the variable at the given trail position.
     fn lower_bound_at_trail_position(&self, assignment: &Assignments, trail_position: usize)

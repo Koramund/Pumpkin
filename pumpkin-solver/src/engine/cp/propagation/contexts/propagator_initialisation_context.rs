@@ -12,6 +12,7 @@ use crate::engine::Assignments;
 use crate::engine::TrailedAssignments;
 use crate::engine::WatchListCP;
 use crate::engine::Watchers;
+use crate::variables::{DomainId, Literal};
 
 /// [`PropagatorInitialisationContext`] is used when [`Propagator`]s are initialised after creation.
 ///
@@ -43,6 +44,28 @@ impl PropagatorInitialisationContext<'_> {
 
             assignments,
         }
+    }
+    
+    pub(crate) fn _create_new_literal(&mut self,) -> Literal {
+        let domain_id = self._create_new_integer_variable(0, 1);
+        Literal::new(domain_id)
+    }
+
+    /// Create a new integer variable. Its domain will have the given lower and upper bounds.
+    pub(crate) fn _create_new_integer_variable(
+        &mut self,
+        lower_bound: i32,
+        upper_bound: i32,
+    ) -> DomainId {
+        assert!(
+            lower_bound <= upper_bound,
+            "Variables cannot be created in an inconsistent state"
+        );
+
+        let domain_id = self.assignments.grow(lower_bound, upper_bound);
+        self.watch_list.grow();
+
+        domain_id
     }
 
     pub(crate) fn as_stateful_readonly(&mut self) -> StatefulPropagationContext {

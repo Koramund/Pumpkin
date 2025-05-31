@@ -2,8 +2,8 @@ use std::cell::OnceCell;
 use std::cmp::max;
 use std::cmp::min;
 use std::rc::Rc;
-
-use super::explanations::add_propagating_task_predicate_lower_bound;
+use crate::basic_types::cumulative_literal::CumulativeExtendedType;
+use super::explanations::{add_propagating_task_predicate_lower_bound, extended};
 use super::explanations::add_propagating_task_predicate_upper_bound;
 use super::explanations::big_step::create_big_step_conflict_explanation;
 use super::explanations::big_step::create_big_step_propagation_explanation;
@@ -20,6 +20,7 @@ use crate::engine::propagation::PropagationContextMut;
 use crate::engine::propagation::ReadDomains;
 use crate::engine::EmptyDomain;
 use crate::predicates::PropositionalConjunction;
+use crate::propagators::cumulative::time_table::explanations::extended::create_extended_conflict_explanation;
 use crate::propagators::cumulative::time_table::explanations::pointwise;
 use crate::propagators::ResourceProfile;
 use crate::propagators::Task;
@@ -36,6 +37,7 @@ pub(crate) struct CumulativePropagationHandler {
     /// explanation and re-use it. Note that this will only be used for
     /// [`CumulativeExplanationType::Naive`] and [`CumulativeExplanationType::BigStep`].
     stored_profile_explanation: OnceCell<Rc<PropositionalConjunction>>,
+    extended_type: CumulativeExtendedType,
 }
 
 fn check_explanation(explanation: &PropositionalConjunction, context: PropagationContext) -> bool {
@@ -49,10 +51,11 @@ fn check_explanation(explanation: &PropositionalConjunction, context: Propagatio
 }
 
 impl CumulativePropagationHandler {
-    pub(crate) fn new(explanation_type: CumulativeExplanationType) -> Self {
+    pub(crate) fn new(explanation_type: CumulativeExplanationType, extended_type: CumulativeExtendedType) -> Self {
         Self {
             explanation_type,
             stored_profile_explanation: OnceCell::new(),
+            extended_type,
         }
     }
 
@@ -69,6 +72,7 @@ impl CumulativePropagationHandler {
     {
         pumpkin_assert_simple!(!profiles.is_empty());
         match self.explanation_type {
+            //TODO just introduce a new type here and voilla, we're in.
             CumulativeExplanationType::Naive | CumulativeExplanationType::BigStep => {
                 let mut full_explanation = PropositionalConjunction::default();
 
@@ -83,6 +87,9 @@ impl CumulativePropagationHandler {
                         CumulativeExplanationType::Pointwise => {
                             unreachable!("At the moment, we do not store the profile explanation for the pointwise explanation since it consists of multiple explanations")
                         }
+                        CumulativeExplanationType::Extended => {
+                            unreachable!("just is not reachable.")
+                        }
                     };
 
                     full_explanation =
@@ -96,6 +103,7 @@ impl CumulativePropagationHandler {
                     propagating_task,
                     profiles[0],
                     None,
+                    self.extended_type,
                 );
 
                 pumpkin_assert_extreme!(check_explanation(
@@ -113,6 +121,14 @@ impl CumulativePropagationHandler {
                     context,
                     profiles,
                     propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_lower_bounds_with_extended_explanations(
+                    context,
+                    profiles,
+                    propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -146,6 +162,9 @@ impl CumulativePropagationHandler {
                         CumulativeExplanationType::Pointwise => {
                             unreachable!("At the moment, we do not store the profile explanation for the pointwise explanation since it consists of multiple explanations")
                         }
+                        CumulativeExplanationType::Extended => {
+                            unreachable!("just is not reachable.")
+                        }
                     };
 
                     full_explanation =
@@ -159,6 +178,7 @@ impl CumulativePropagationHandler {
                     propagating_task,
                     profiles[profiles.len() - 1],
                     None,
+                    self.extended_type,
                 );
                 pumpkin_assert_extreme!(check_explanation(
                     &full_explanation,
@@ -175,6 +195,14 @@ impl CumulativePropagationHandler {
                     context,
                     profiles,
                     propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_upper_bounds_with_extended_explanations(
+                    context,
+                    profiles,
+                    propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -208,6 +236,7 @@ impl CumulativePropagationHandler {
                         propagating_task,
                         profile,
                         None,
+                        self.extended_type,
                     );
                 pumpkin_assert_extreme!(check_explanation(&explanation, context.as_readonly()));
 
@@ -220,6 +249,14 @@ impl CumulativePropagationHandler {
                     context,
                     &[profile],
                     propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_lower_bounds_with_extended_explanations(
+                    context,
+                    &[profile],
+                    propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -254,6 +291,7 @@ impl CumulativePropagationHandler {
                         propagating_task,
                         profile,
                         None,
+                        self.extended_type,
                     );
                 pumpkin_assert_extreme!(check_explanation(&explanation, context.as_readonly()));
 
@@ -270,6 +308,14 @@ impl CumulativePropagationHandler {
                     context,
                     &[profile],
                     propagating_task,
+                )
+            }
+            CumulativeExplanationType::Extended => {
+                extended::propagate_upper_bounds_with_extended_explanations(
+                    context,
+                    &[profile],
+                    propagating_task,
+                    self.extended_type,
                 )
             }
         }
@@ -357,6 +403,9 @@ impl CumulativePropagationHandler {
                     pumpkin_assert_extreme!(check_explanation(&explanation, context.as_readonly()));
                     context.remove(&propagating_task.start_variable, time_point, explanation)?;
                 }
+                CumulativeExplanationType::Extended => {
+                    unreachable!("CumulativeExplanationType::Extended does not support holes in the domain");
+                }
             }
         }
 
@@ -390,6 +439,9 @@ impl CumulativePropagationHandler {
                     CumulativeExplanationType::Pointwise => {
                         unreachable!("At the moment, we do not store the profile explanation for the pointwise explanation since it consists of multiple explanations")
                     },
+                    CumulativeExplanationType::Extended => {
+                        unreachable!("I have no clue what this does yet so if we hit this I probably missed an implementation detail")
+                    }
                 }
             )
         }))
@@ -402,6 +454,7 @@ pub(crate) fn create_conflict_explanation<Var, Context: ReadDomains + Copy>(
     context: Context,
     conflict_profile: &ResourceProfile<Var>,
     explanation_type: CumulativeExplanationType,
+    underlying_type: CumulativeExtendedType,
 ) -> PropositionalConjunction
 where
     Var: IntegerVariable + 'static,
@@ -416,13 +469,16 @@ where
         CumulativeExplanationType::Pointwise => {
             create_pointwise_conflict_explanation(conflict_profile)
         }
+        CumulativeExplanationType::Extended => {
+            create_extended_conflict_explanation(context, conflict_profile, underlying_type)
+        }
     }
 }
 
 #[cfg(test)]
 pub(crate) mod test_propagation_handler {
     use std::rc::Rc;
-
+    use crate::basic_types::cumulative_literal::CumulativeExtendedType;
     use super::create_conflict_explanation;
     use super::CumulativeExplanationType;
     use super::CumulativePropagationHandler;
@@ -434,13 +490,14 @@ pub(crate) mod test_propagation_handler {
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
     use crate::engine::reason::ReasonStore;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, WatchListCP};
     use crate::engine::TrailedAssignments;
     use crate::predicate;
     use crate::predicates::Predicate;
     use crate::predicates::PropositionalConjunction;
     use crate::propagators::ResourceProfile;
     use crate::propagators::Task;
+    use crate::variable_names::VariableNames;
     use crate::variables::DomainId;
 
     pub(crate) struct TestPropagationHandler {
@@ -451,8 +508,8 @@ pub(crate) mod test_propagation_handler {
     }
 
     impl TestPropagationHandler {
-        pub(crate) fn new(explanation_type: CumulativeExplanationType) -> Self {
-            let propagation_handler = CumulativePropagationHandler::new(explanation_type);
+        pub(crate) fn new(explanation_type: CumulativeExplanationType, extended_type: CumulativeExtendedType) -> Self {
+            let propagation_handler = CumulativePropagationHandler::new(explanation_type, extended_type);
 
             let reason_store = ReasonStore::default();
             let assignments = Assignments::default();
@@ -486,6 +543,7 @@ pub(crate) mod test_propagation_handler {
                 PropagationContext::new(&self.assignments),
                 &profile,
                 self.propagation_handler.explanation_type,
+                self.propagation_handler.extended_type,
             );
 
             (reason, y)
@@ -527,6 +585,11 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
+                        &mut vec![],
+                        &mut vec![],
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -588,6 +651,11 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
+                        &mut vec![],
+                        &mut vec![],
                     ),
                     &[&profile_y, &profile_z],
                     &Rc::new(propagating_task),
@@ -636,6 +704,11 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
+                        &mut vec![],
+                        &mut vec![],
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -697,6 +770,11 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut WatchListCP::default(),
+                        &mut VariableNames::default(),
+                        &mut vec![],
+                        &mut vec![],
+                        &mut vec![],
                     ),
                     &[&profile_z, &profile_y],
                     &Rc::new(propagating_task),

@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use clap::ValueEnum;
-
+use crate::basic_types::cumulative_literal::CumulativeExtendedType;
 use super::CumulativeExplanationType;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -13,6 +13,8 @@ pub(crate) struct CumulativePropagatorOptions {
     /// The type of explanation which is used by the cumulative to explain propagations and
     /// conflicts.
     pub(crate) explanation_type: CumulativeExplanationType,
+    /// The explanation type used beneath the extended resolution engine.
+    pub(crate) extended_type: CumulativeExtendedType,
     /// Determines whether a sequence of profiles is generated when explaining a propagation.
     pub(crate) generate_sequence: bool,
     /// Determines whether to incrementally backtrack or to calculate from scratch
@@ -33,6 +35,7 @@ impl CumulativeOptions {
     pub fn new(
         allow_holes_in_domain: bool,
         explanation_type: CumulativeExplanationType,
+        extended_type: CumulativeExtendedType,
         generate_sequence: bool,
         propagation_method: CumulativePropagationMethod,
         incremental_backtracking: bool,
@@ -42,6 +45,7 @@ impl CumulativeOptions {
             propagator_options: CumulativePropagatorOptions {
                 allow_holes_in_domain,
                 explanation_type,
+                extended_type,
                 generate_sequence,
                 incremental_backtracking,
             },
@@ -54,8 +58,8 @@ pub enum CumulativePropagationMethod {
     TimeTablePerPoint,
     TimeTablePerPointIncremental,
     TimeTablePerPointIncrementalSynchronised,
-    TimeTableOverInterval,
     #[default]
+    TimeTableOverInterval,
     TimeTableOverIntervalIncremental,
     TimeTableOverIntervalIncrementalSynchronised,
 }

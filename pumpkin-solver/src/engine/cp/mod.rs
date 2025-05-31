@@ -28,7 +28,8 @@ mod tests {
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
     use crate::engine::reason::ReasonStore;
-    use crate::engine::TrailedAssignments;
+    use crate::engine::{TrailedAssignments, WatchListCP};
+    use crate::variable_names::VariableNames;
 
     #[test]
     fn test_no_update_reason_store_if_no_update_lower_bound() {
@@ -40,12 +41,22 @@ mod tests {
         assert_eq!(reason_store.len(), 0);
         {
             let mut semantic_miniser = SemanticMinimiser::default();
+            let mut watch_list = WatchListCP::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut stateful_assignments,
                 &mut assignments,
                 &mut reason_store,
                 &mut semantic_miniser,
                 PropagatorId(0),
+                &mut watch_list,
+                &mut variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             let result = context.set_lower_bound(&domain, 2, conjunction!());
@@ -65,12 +76,22 @@ mod tests {
         assert_eq!(reason_store.len(), 0);
         {
             let mut semantic_miniser = SemanticMinimiser::default();
+            let mut watch_list = WatchListCP::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut stateful_assignments,
                 &mut assignments,
                 &mut reason_store,
                 &mut semantic_miniser,
                 PropagatorId(0),
+                &mut watch_list,
+                &mut variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             let result = context.set_upper_bound(&domain, 15, conjunction!());
@@ -90,12 +111,22 @@ mod tests {
         assert_eq!(reason_store.len(), 0);
         {
             let mut semantic_miniser = SemanticMinimiser::default();
+            let mut watch_list = WatchListCP::default();
+            let mut variable_names = VariableNames::default();
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut stateful_assignments,
                 &mut assignments,
                 &mut reason_store,
                 &mut semantic_miniser,
                 PropagatorId(0),
+                &mut watch_list,
+                &mut variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             let result = context.remove(&domain, 15, conjunction!());

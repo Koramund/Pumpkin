@@ -134,7 +134,7 @@ impl RecursiveMinimiser {
             if context
                 .assignments
                 .get_decision_level_for_predicate(&antecedent_predicate)
-                .unwrap()
+                .expect("Some predicate has no decision level")
                 == 0
             {
                 continue;

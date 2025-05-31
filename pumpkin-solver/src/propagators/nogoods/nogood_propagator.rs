@@ -790,6 +790,7 @@ impl Propagator for NogoodPropagator {
             event.unwrap(),
             DomainId {
                 id: local_id.unpack(),
+                decidable: true,
             },
         );
         if let IntDomainEvent::LowerBound | IntDomainEvent::UpperBound = event.unwrap() {
@@ -798,6 +799,7 @@ impl Propagator for NogoodPropagator {
                 IntDomainEvent::Removal,
                 DomainId {
                     id: local_id.unpack(),
+                    decidable: true,
                 },
             );
         }
@@ -1478,12 +1480,20 @@ mod tests {
 
         let nogood = conjunction!([a >= 2] & [b >= 1] & [c >= 10]);
         {
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
                 &mut solver.reason_store,
                 &mut solver.semantic_minimiser,
                 propagator,
+                &mut solver.watch_list,
+                &mut solver.variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)
@@ -1519,12 +1529,20 @@ mod tests {
 
         let nogood = conjunction!([a >= 2] & [b >= 1] & [c >= 10]);
         {
+            let mut vec = vec![];
+            let mut vec2 = vec![];
+            let mut vec3 = vec![];
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
                 &mut solver.reason_store,
                 &mut solver.semantic_minimiser,
                 propagator,
+                &mut solver.watch_list,
+                &mut solver.variable_names,
+                &mut vec,
+                &mut vec2,
+                &mut vec3,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)

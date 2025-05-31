@@ -4,6 +4,7 @@ use crate::branching::SelectionContext;
 use crate::containers::SparseSet;
 use crate::containers::StorageKey;
 use crate::variables::DomainId;
+use rand::prelude::IteratorRandom;
 
 /// A [`VariableSelector`] which selects a random unfixed variable.
 #[derive(Debug)]
@@ -27,27 +28,7 @@ impl VariableSelector<DomainId> for RandomSelector {
         if self.variables.is_empty() {
             return None;
         }
-
-        let mut variable = *self.variables.get(
-            context
-                .random()
-                .generate_usize_in_range(0..self.variables.len()),
-        );
-
-        while context.is_integer_fixed(variable) {
-            self.variables.remove_temporarily(&variable);
-            if self.variables.is_empty() {
-                return None;
-            }
-
-            variable = *self.variables.get(
-                context
-                    .random()
-                    .generate_usize_in_range(0..self.variables.len()),
-            );
-        }
-
-        Some(variable)
+        self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).choose(&mut rand::thread_rng()).cloned()
     }
 
     fn on_unassign_integer(&mut self, variable: DomainId, _value: i32) {

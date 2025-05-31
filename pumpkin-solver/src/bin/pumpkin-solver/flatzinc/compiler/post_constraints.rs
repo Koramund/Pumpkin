@@ -597,7 +597,7 @@ fn compile_reified_binary_int_predicate<C: NegatableConstraint>(
     Ok(constraint.reify(context.solver, reif, None).is_ok())
 }
 
-fn weighted_vars(weights: Rc<[i32]>, vars: Rc<[DomainId]>) -> Box<[AffineView<DomainId>]> {
+fn weighted_vars(weights: Rc<[i32]>, vars: Rc<[DomainId]>) -> Box<[AffineView]> {
     vars.iter()
         .zip(weights.iter())
         .map(|(x_i, &w_i)| x_i.scaled(w_i))
@@ -609,7 +609,7 @@ fn compile_int_lin_predicate<C: Constraint>(
     exprs: &[flatzinc::Expr],
     _: &[flatzinc::Annotation],
     predicate_name: &str,
-    create_constraint: impl FnOnce(Box<[AffineView<DomainId>]>, i32) -> C,
+    create_constraint: impl FnOnce(Box<[AffineView]>, i32) -> C,
 ) -> Result<bool, FlatZincError> {
     check_parameters!(exprs, 3, predicate_name);
 
@@ -628,7 +628,7 @@ fn compile_reified_int_lin_predicate<C: NegatableConstraint>(
     exprs: &[flatzinc::Expr],
     _: &[flatzinc::Annotation],
     predicate_name: &str,
-    create_constraint: impl FnOnce(Box<[AffineView<DomainId>]>, i32) -> C,
+    create_constraint: impl FnOnce(Box<[AffineView]>, i32) -> C,
 ) -> Result<bool, FlatZincError> {
     check_parameters!(exprs, 4, predicate_name);
 

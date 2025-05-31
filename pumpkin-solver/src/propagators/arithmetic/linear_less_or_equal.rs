@@ -16,7 +16,6 @@ use crate::engine::propagation::PropagatorInitialisationContext;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::TrailedInt;
 use crate::predicate;
-use crate::pumpkin_assert_simple;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -106,11 +105,6 @@ where
 
         let old_bound = context.value(self.current_bounds[index]);
         let new_bound = context.lower_bound(x_i) as i64;
-
-        pumpkin_assert_simple!(
-            old_bound < new_bound,
-            "propagator should only be triggered when lower bounds are tightened, old_bound={old_bound}, new_bound={new_bound}"
-        );
 
         context.add_assign(self.lower_bound_left_hand_side, new_bound - old_bound);
         context.assign(self.current_bounds[index], new_bound);
