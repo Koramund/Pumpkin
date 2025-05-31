@@ -122,7 +122,7 @@ impl DefaultBrancher {
             decay_factor: DEFAULT_VSIDS_DECAY_FACTOR,
             best_known_solution: None,
             backup_brancher: IndependentVariableValueBrancher::new(
-                RandomSelector::new(assignments.get_domains()),
+                RandomSelector::new(assignments.get_domains_cloned()),
                 RandomSplitter,
             ),
             statistics: Default::default(),
@@ -255,6 +255,7 @@ impl<BackupBrancher: Brancher> Brancher for AutonomousSearch<BackupBrancher> {
             .map(|predicate| self.determine_polarity(predicate));
         if result.is_none() && !context.are_all_variables_assigned() {
             // There are variables for which we do not have a predicate, rely on the backup
+            // dbg!("Calling for backup!");
             self.statistics.num_backup_called += 1;
             self.backup_brancher.next_decision(context)
         } else {

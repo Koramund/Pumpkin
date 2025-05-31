@@ -1,3 +1,5 @@
+use itertools::Itertools;
+use rand::prelude::IteratorRandom;
 use super::VariableSelector;
 use crate::branching::BrancherEvent;
 use crate::branching::SelectionContext;
@@ -27,27 +29,29 @@ impl VariableSelector<DomainId> for RandomSelector {
         if self.variables.is_empty() {
             return None;
         }
-
-        let mut variable = *self.variables.get(
-            context
-                .random()
-                .generate_usize_in_range(0..self.variables.len()),
-        );
-
-        while context.is_integer_fixed(variable) {
-            self.variables.remove_temporarily(&variable);
-            if self.variables.is_empty() {
-                return None;
-            }
-
-            variable = *self.variables.get(
-                context
-                    .random()
-                    .generate_usize_in_range(0..self.variables.len()),
-            );
-        }
-
-        Some(variable)
+        self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).choose(&mut rand::thread_rng()).cloned()
+        // self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).last().copied()
+        
+        // let mut variable = *self.variables.get(self.variables.len() - 1);
+        // // 
+        // // let mut variable = *self.variables.get(
+        // //     context
+        // //         .random()
+        // //         .generate_usize_in_range(0..self.variables.len()),
+        // // );
+        // while context.is_integer_fixed(variable) || !variable.decidable {
+        //     dbg!(&variable);
+        //     self.variables.remove_temporarily(&variable);
+        //     if self.variables.is_empty() {
+        //         dbg!("returning None");
+        //         return None;
+        //     }
+        // 
+        //     variable = *self.variables.get(self.variables.len() - 1);
+        // }
+        // 
+        // dbg!(variable, variable.decidable);
+        // Some(variable)
     }
 
     fn on_unassign_integer(&mut self, variable: DomainId, _value: i32) {

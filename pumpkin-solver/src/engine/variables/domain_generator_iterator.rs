@@ -25,6 +25,7 @@ impl Iterator for DomainGeneratorIterator {
 
         let variable = DomainId {
             id: self.current_index,
+            decidable: true,
         };
         self.current_index += 1;
 

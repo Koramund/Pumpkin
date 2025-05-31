@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use enumset::EnumSet;
 
 use super::TransformableVariable;
@@ -13,14 +14,31 @@ use crate::engine::Watchers;
 
 /// A structure which represents the most basic [`IntegerVariable`]; it is simply the id which links
 /// to a domain (hence the name).
-#[derive(Clone, PartialEq, Eq, Copy, Hash)]
+#[derive(Clone, Copy)]
 pub struct DomainId {
     pub id: u32,
+    pub decidable: bool,
 }
 
 impl DomainId {
     pub fn new(id: u32) -> Self {
-        DomainId { id }
+        DomainId { id, decidable: true }
+    }
+    
+    pub fn new_hidden(id: u32, decidable:bool) -> Self { DomainId { id, decidable } }
+}
+
+impl Eq for DomainId {}
+
+impl PartialEq for DomainId {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id  // custom equality: only compare `id`
+    }
+}
+
+impl Hash for DomainId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);  // don't hash `decidable` since it's not part of equality
     }
 }
 
@@ -28,6 +46,8 @@ impl IntegerVariable for DomainId {
     fn get_id(&self) -> u32 {
         self.id
     }
+    
+    fn make_decidable(&mut self) { self.decidable = true }
 
     fn lower_bound(&self, assignment: &Assignments) -> i32 {
         assignment.get_lower_bound(*self)
@@ -126,7 +146,7 @@ impl StorageKey for DomainId {
     }
 
     fn create_from_index(index: usize) -> Self {
-        DomainId { id: index as u32 }
+        DomainId { id: index as u32, decidable: true }
     }
 }
 
@@ -138,6 +158,6 @@ impl std::fmt::Display for DomainId {
 
 impl std::fmt::Debug for DomainId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "x{}", self.id)
+        write!(f, "x{}, decidable: {}", self.id, self.decidable)
     }
 }

@@ -214,7 +214,7 @@ impl Predicate {
         // By convention, there is a dummy 0-1 variable set to one at root.
         // We use it to denote the trivially true predicate.
         Predicate::Equal {
-            domain_id: DomainId { id: 0 },
+            domain_id: DomainId { id: 0, decidable: true },
             equality_constant: 1,
         }
     }
@@ -223,7 +223,7 @@ impl Predicate {
         // By convention, there is a dummy 0-1 variable set to one at root.
         // We use it to denote the trivially true predicate.
         Predicate::NotEqual {
-            domain_id: DomainId { id: 0 },
+            domain_id: DomainId { id: 0, decidable: true },
             not_equal_constant: 1,
         }
     }

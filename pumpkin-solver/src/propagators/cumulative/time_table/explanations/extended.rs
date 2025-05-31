@@ -62,6 +62,8 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
 
         let cur_id = context.propagator_id;
         if is_first {
+            pumpkin_assert_simple!(!context.is_literal_fixed(literal), "When given a meaning a literal should not have had a value from before");
+            literal.make_decidable();
             let true_propagator = LargerOrEqualMinimumPropagator::new(
                 propagating_task.start_variable.clone().scaled(1),
                 profile.profile_tasks.iter().map(|x| x.start_variable.offset(x.processing_time)).collect());
@@ -158,6 +160,8 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
 
         let cur_id = context.propagator_id;
         if is_first {
+            pumpkin_assert_simple!(!context.is_literal_fixed(literal), "When given a meaning a literal should not have had a value from before");
+            literal.make_decidable();
             let true_propagator = LargerOrEqualMinimumPropagator::new(
                 propagating_task.start_variable.offset(propagating_task.processing_time).scaled(-1),
                 profile.profile_tasks.iter().map(|x| x.start_variable.scaled(-1)).collect());
