@@ -28,7 +28,7 @@ impl VariableSelector<DomainId> for RandomSelector {
         if self.variables.is_empty() {
             return None;
         }
-        self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).choose(&mut rand::thread_rng()).cloned()
+        self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).choose_stable(&mut rand::thread_rng()).cloned()
     }
 
     fn on_unassign_integer(&mut self, variable: DomainId, _value: i32) {
