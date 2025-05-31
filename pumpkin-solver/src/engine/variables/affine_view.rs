@@ -64,6 +64,10 @@ impl IntegerVariable for AffineView
         }
     }
 
+    fn make_decidable(&mut self) {
+        self.inner.make_decidable()
+    }
+
     fn lower_bound_at_trail_position(
         &self,
         assignment: &Assignments,

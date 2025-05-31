@@ -73,6 +73,9 @@ impl IntegerVariable for Literal {
         self.integer_variable.lower_bound(assignment)
     }
 
+    fn make_decidable(&mut self) {
+        self.integer_variable.make_decidable();
+    }
     fn lower_bound_at_trail_position(
         &self,
         assignment: &Assignments,

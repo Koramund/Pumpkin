@@ -20,6 +20,8 @@ pub trait IntegerVariable:
     
     /// Get the lower bound of the variable.
     fn lower_bound(&self, assignment: &Assignments) -> i32;
+    
+    fn make_decidable(&mut self);
 
     /// Get the lower bound of the variable at the given trail position.
     fn lower_bound_at_trail_position(&self, assignment: &Assignments, trail_position: usize)

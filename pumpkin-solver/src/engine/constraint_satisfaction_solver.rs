@@ -510,6 +510,11 @@ impl ConstraintSatisfactionSolver {
         }
     }
 
+    pub fn create_new_hidden_literal(&mut self, name: Option<String>) -> Literal {
+        let domain_id = self.create_new_hidden_integer_variable(0, 1, name);
+        Literal::new(domain_id)
+    }
+    
     pub fn create_new_literal(&mut self, name: Option<String>) -> Literal {
         let domain_id = self.create_new_integer_variable(0, 1, name);
         Literal::new(domain_id)
@@ -530,15 +535,29 @@ impl ConstraintSatisfactionSolver {
 
         literal
     }
+    
+    /// Create a new integer variable. Its domain will have the given lower and upper bounds.
+    pub fn create_new_hidden_integer_variable(
+        &mut self,
+        lower_bound: i32,
+        upper_bound: i32,
+        name: Option<String>,
+    ) -> DomainId {
+        assert!(
+            !self.state.is_inconsistent(),
+            "Variables cannot be created in an inconsistent state"
+        );
 
-    pub fn link_literal_to_predicate(&mut self, literal: Literal, predicate: Predicate) {
-        // If literal --> predicate
-        let _ = self.add_clause(vec![!literal.get_true_predicate(), predicate]);
+        let domain_id = self.assignments.grow_undecidable(lower_bound, upper_bound);
+        self.watch_list_cp.grow();
 
-        // If !literal --> !predicate
-        let _ = self.add_clause(vec![!literal.get_false_predicate(), !predicate]);
+        if let Some(name) = name {
+            self.variable_names.add_integer(domain_id, name);
+        }
+
+        domain_id
     }
-
+    
     /// Create a new integer variable. Its domain will have the given lower and upper bounds.
     pub fn create_new_integer_variable(
         &mut self,
@@ -1406,7 +1425,7 @@ impl ConstraintSatisfactionSolver {
         if self.free_literals.len() == 0 {
             for _ in 0..100_000 {
                 // Every literal requires 2 propagators
-                let literal = self.create_new_literal(None);
+                let literal = self.create_new_hidden_literal(None);
                 self.free_literals.push(literal);
                 self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
                 self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));

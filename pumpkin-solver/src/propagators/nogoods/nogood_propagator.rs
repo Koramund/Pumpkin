@@ -792,6 +792,7 @@ impl Propagator for NogoodPropagator {
             event.unwrap(),
             DomainId {
                 id: local_id.unpack(),
+                decidable: true,
             },
         );
         if let IntDomainEvent::LowerBound | IntDomainEvent::UpperBound = event.unwrap() {
@@ -800,6 +801,7 @@ impl Propagator for NogoodPropagator {
                 IntDomainEvent::Removal,
                 DomainId {
                     id: local_id.unpack(),
+                    decidable: true,
                 },
             );
         }

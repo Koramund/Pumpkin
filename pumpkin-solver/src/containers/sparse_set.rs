@@ -130,6 +130,7 @@ impl<T> SparseSet<T> {
         }
     }
 
+    // TODO can auto search fail if therefore remove_temporarily does not actually remove?
     pub(crate) fn remove_temporarily(&mut self, to_remove: &T) {
         if self.indices[(self.mapping)(to_remove)] < self.size {
             // The element is part of the domain and should be removed
