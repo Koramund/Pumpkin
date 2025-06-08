@@ -66,12 +66,14 @@ where
 mod tests {
     use super::*;
     use crate::basic_types::tests::TestRandom;
+    use crate::engine::SolverStatistics;
 
     #[test]
     fn test_correctly_selected() {
         let assignments = SelectionContext::create_for_testing(vec![(0, 10), (10, 20)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
         let integer_variables = context.get_domains().collect::<Vec<_>>();
 
         let mut strategy = Occurrence::new(&integer_variables, &[2, 1]);
@@ -84,7 +86,8 @@ mod tests {
     fn fixed_variables_are_not_selected() {
         let assignments = SelectionContext::create_for_testing(vec![(10, 10), (20, 20)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
         let integer_variables = context.get_domains().collect::<Vec<_>>();
 
         let mut strategy = Occurrence::new(&integer_variables, &[1, 2]);

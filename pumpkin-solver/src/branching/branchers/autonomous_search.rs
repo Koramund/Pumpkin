@@ -234,10 +234,12 @@ impl<BackupBrancher: Brancher> Brancher for AutonomousSearch<BackupBrancher> {
             // There are variables for which we do not have a predicate, rely on the backup
             self.backup_brancher.next_decision(context)
         } else {
-            let mut cover_map = EXTENDED_TO_COVER.lock().unwrap();
+            if result.is_some() {
+                let cover_map = EXTENDED_TO_COVER.lock().unwrap();
 
-            let flag: bool = cover_map.contains_key(&result.unwrap().get_domain().get_id());
-            context.counters.learned_clause_statistics.decisions_on_extended += u64::from(flag);
+                let flag: bool = cover_map.contains_key(&result.unwrap().get_domain().get_id());
+                context.counters.engine_statistics.decisions_on_extended += u64::from(flag);
+            }
             result
         }
     }
@@ -319,7 +321,7 @@ mod tests {
     use crate::basic_types::tests::TestRandom;
     use crate::branching::Brancher;
     use crate::branching::SelectionContext;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, SolverStatistics};
     use crate::predicate;
     use crate::results::SolutionReference;
 
@@ -349,6 +351,8 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            
         ));
         assert_eq!(decision, Some(predicate));
 
@@ -370,6 +374,7 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
         assert!(decision.is_none());
         assert!(brancher.dormant_predicates.contains(&predicate));
@@ -379,6 +384,7 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
         assert!(decision.is_none());
         assert!(brancher.dormant_predicates.contains(&predicate));
@@ -389,6 +395,7 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
         assert_eq!(decision, Some(predicate));
         assert!(!brancher.dormant_predicates.contains(&predicate));
@@ -409,6 +416,7 @@ mod tests {
                 bools: vec![false],
                 weighted_choice: |_| unreachable!(),
             },
+            &mut SolverStatistics::default(),
         ));
 
         assert_eq!(result, Some(predicate!(x <= 2)));
@@ -450,6 +458,7 @@ mod tests {
         let result = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
         assert_eq!(result, Some(predicate!(x >= 5)));
     }

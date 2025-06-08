@@ -26,6 +26,8 @@ create_statistics_struct!(
         num_propagations: u64,
         /// The amount of time which is spent in the solver
         time_spent_in_solver: u64,
+        /// The number of decisions that were made on extended predicates
+        decisions_on_extended: u64,
 });
 
 create_statistics_struct!(
@@ -52,9 +54,7 @@ create_statistics_struct!(
         //histogram representing the cover of variables entering the nogoods
         histogram_on_learning: Histogram,
         histogram_on_propagation: Histogram,
-        
-        decisions_on_extended: u64,
-        
+
         propagated_on_learned_clause: u64,
         
         // These are overlapping

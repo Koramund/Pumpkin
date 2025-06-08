@@ -228,7 +228,7 @@ mod tests {
     use crate::basic_types::tests::TestRandom;
     use crate::branching::Brancher;
     use crate::branching::SelectionContext;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, SolverStatistics};
     use crate::results::SolutionReference;
     use crate::Solver;
 
@@ -311,6 +311,7 @@ mod tests {
         let _ = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
         assert!(brancher.is_using_default_brancher);
 
@@ -318,6 +319,7 @@ mod tests {
         let _ = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
         assert!(!brancher.is_using_default_brancher);
 
@@ -325,6 +327,7 @@ mod tests {
         let _ = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
         ));
 
         assert!(brancher.is_using_default_brancher);

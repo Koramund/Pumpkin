@@ -19,14 +19,15 @@ use crate::engine::{Assignments, SolverStatistics};
 pub struct SelectionContext<'a> {
     assignments: &'a Assignments,
     random_generator: &'a mut dyn Random,
-    pub(crate) counters: &'a mut SolverStatistics,
+    pub counters: &'a mut SolverStatistics,
 }
 
 impl<'a> SelectionContext<'a> {
-    pub fn new(assignments: &'a Assignments, rng: &'a mut dyn Random) -> Self {
+    pub fn new(assignments: &'a Assignments, rng: &'a mut dyn Random, counters: &'a mut SolverStatistics) -> Self {
         SelectionContext {
             assignments,
             random_generator: rng,
+            counters,
         }
     }
 
