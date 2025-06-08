@@ -12,6 +12,7 @@ mod solution;
 mod stored_conflict_info;
 mod trail;
 pub mod linear_options;
+pub(crate) mod histogram;
 
 pub use constraint_operation_error::ConstraintOperationError;
 pub(crate) use csp_solver_execution_flag::CSPSolverExecutionFlag;

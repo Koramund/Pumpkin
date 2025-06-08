@@ -11,7 +11,7 @@ use crate::predicate;
 use crate::variables::{AffineView, DomainId, TransformableVariable};
 use itertools::Itertools;
 use std::cmp::min;
-use crate::constraints::{DECOMPOSED, PARTIAL_ENCODINGS};
+use crate::constraints::{DECOMPOSED, EXTENDED_TO_COVER, PARTIAL_ENCODINGS};
 use crate::propagators::linear_less_or_equal_totalizer::get_scale_offset_shared;
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
@@ -89,6 +89,7 @@ where
         
         let mut cache = PARTIAL_ENCODINGS.lock().unwrap();
         let mut decomp = DECOMPOSED.lock().unwrap();
+        let mut cover_map = EXTENDED_TO_COVER.lock().unwrap();
         
         // Note that this is an invalid key as id 0 belongs to the always true predicate, hence this propagator can never have added it to the map.
         let dummy_key = vec![(-1, -1, 0)];
@@ -127,6 +128,9 @@ where
                     let _ = cache.insert(basic_key, prime_partial);
                     let _ = decomp.insert(prime_partial.get_id(), locality_cluster.iter().map(|x| Some(x.get_id())).chain(
                         std::iter::once(if i == 0 {None} else {Some(partials[i].get_id())})).filter_map(|x| x).collect_vec());
+
+                    let cover_previous_partial: u64 = if i == 0 {0} else {*cover_map.get(&partials[i].get_id()).unwrap_or(&0)};
+                    let _ = cover_map.insert(prime_partial.get_id(), (locality_cluster.len() as u64) + cover_previous_partial);
                     
                 } else {
                     prime_partial = *cache.get(basic_key.as_slice()).unwrap();
@@ -146,6 +150,9 @@ where
             let partial = context.create_new_integer_variable(lb, ub).scaled(1);
 
             let _ = decomp.insert(partial.get_id(), locality_cluster.iter().map(|x| Some(x.get_id())).chain(std::iter::once(if i == 0 {None} else {Some(partials[i].get_id())})).filter_map(|x| x).collect_vec());
+            let cover_previous_partial: u64 = if i == 0 {0} else {*cover_map.get(&partials[i].get_id()).unwrap_or(&0)};
+            let _ = cover_map.insert(partial.get_id(), (locality_cluster.len() as u64) + cover_previous_partial);
+            
             partials.push(partial);
             let _ = cache.insert(cache_key, partial);
         }

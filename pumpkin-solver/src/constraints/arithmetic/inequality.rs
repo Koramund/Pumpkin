@@ -17,6 +17,9 @@ pub static PARTIAL_ENCODINGS: LazyLock<Mutex<HashMap<Vec<(i32, i32, u32)>, Affin
 
 pub static DECOMPOSED: LazyLock<Mutex<HashMap<u32, Vec<u32>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
+pub static EXTENDED_TO_COVER: LazyLock<Mutex<HashMap<u32, u64>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+
 /// Create the [`NegatableConstraint`] `\sum terms_i <= rhs`.
 ///
 /// Its negation is `\sum terms_i > rhs`

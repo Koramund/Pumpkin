@@ -10,7 +10,7 @@ use crate::basic_types::moving_averages::MovingAverage;
 use crate::basic_types::Inconsistency;
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::PropositionalConjunction;
-use crate::constraints::DECOMPOSED;
+use crate::constraints::{DECOMPOSED, EXTENDED_TO_COVER};
 use crate::containers::KeyedVec;
 use crate::engine::conflict_analysis::Mode;
 use crate::engine::nogoods::Lbd;
@@ -955,6 +955,7 @@ fn report_extended_resolution_on_learning(context: &mut PropagationContextMut, n
 }
 
 fn report_duplicates_on_propagation(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    report_histogram_on_propagating(context, nogood);
     report_extended_resolution_on_propagation(context, nogood);
     let (mut decomposed_lb, mut decomposed_ub) = decompose_nogood(nogood);
 
@@ -973,7 +974,30 @@ fn report_duplicates_on_propagation(context: &mut PropagationContextMut, nogood:
     context.counters.learned_clause_statistics.propagated_with_duplicate.add_term(u64::from(flag));
 }
 
+fn report_histogram_on_learning(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    let cover_map = EXTENDED_TO_COVER.lock().unwrap();
+    
+    for predicate in nogood {
+        let key = &predicate.get_domain().id;
+        if cover_map.contains_key(key) {
+            context.counters.learned_clause_statistics.histogram_on_learning.add(*cover_map.get(key).unwrap() - 1, 1)
+        }
+    }
+}
+
+fn report_histogram_on_propagating(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    let cover_map = EXTENDED_TO_COVER.lock().unwrap();
+
+    for predicate in nogood {
+        let key = &predicate.get_domain().id;
+        if cover_map.contains_key(key) {
+            context.counters.learned_clause_statistics.histogram_on_propagation.add(*cover_map.get(key).unwrap() - 1, 1)
+        }
+    }
+}
+
 fn report_duplicates_on_learning(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    report_histogram_on_learning(context, nogood);
     report_extended_resolution_on_learning(context, nogood);
     let (mut decomposed_lb, mut decomposed_ub) = decompose_nogood(&nogood);
 

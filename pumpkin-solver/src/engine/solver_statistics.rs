@@ -1,3 +1,4 @@
+use crate::basic_types::histogram::Histogram;
 use crate::basic_types::moving_averages::CumulativeMovingAverage;
 use crate::create_statistics_struct;
 
@@ -47,6 +48,10 @@ create_statistics_struct!(
         /// The number of clauses which contain overlap
         chance_contains_overlap: CumulativeMovingAverage<u64>,
         chance_contains_extended_resolution: CumulativeMovingAverage<u64>,
+
+        //histogram representing the cover of variables entering the nogoods
+        histogram_on_learning: Histogram,
+        histogram_on_propagation: Histogram,
         
         propagated_on_learned_clause: u64,
         

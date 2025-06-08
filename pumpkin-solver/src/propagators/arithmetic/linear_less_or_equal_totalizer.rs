@@ -12,7 +12,7 @@ use crate::variables::{AffineView, DomainId, TransformableVariable};
 use crate::{predicate, pumpkin_assert_simple};
 use itertools::Itertools;
 use std::ops::Range;
-use crate::constraints::{DECOMPOSED, PARTIAL_ENCODINGS};
+use crate::constraints::{DECOMPOSED, EXTENDED_TO_COVER, PARTIAL_ENCODINGS};
 
 /// Propagator for the constraint `reif => \sum x_i <= c`.
 #[derive(Clone, Debug)]
@@ -88,6 +88,7 @@ where
         
         let mut cache = PARTIAL_ENCODINGS.lock().unwrap();
         let mut decomp = DECOMPOSED.lock().unwrap();
+        let mut cover_map = EXTENDED_TO_COVER.lock().unwrap();
         
         // TODO double check this size calculation
         // Note that floating precision may bite us and create a larger tree than necessary.
@@ -131,6 +132,11 @@ where
                     let _ = cache.insert(basic_key, prime_partial);
                     
                     let _ = decomp.insert(prime_partial.get_id(), prime_children.iter().map(|x| x.get_id()).collect_vec());
+
+                    // Okay so we have very little information as everything is abstracted behind self.children(i)
+                    // Therefore just perform a raw lookup and default to 1 if this element wasn't present (leaves are not in the cover map)
+                    let cover: u64 = prime_children.iter().map(|x| cover_map.get(&x.get_id()).unwrap_or(&1)).sum();
+                    let _ = cover_map.insert(prime_partial.get_id(), cover);
                     
                 } else {
                     prime_partial = *cache.get(basic_key.as_slice()).unwrap()
@@ -150,6 +156,11 @@ where
 
                 partial = context.create_new_integer_variable(lb, ub).scaled(1);
                 let _ = decomp.insert(partial.get_id(), self.children(i).filter_map(|x| self.get_domain_id(x)).map(|x| x.get_id()).collect_vec());
+                
+                // Okay so we have very little information as everything is abstracted behind self.children(i)
+                // Therefore just perform a raw lookup and default to 1 if this element wasn't present (leaves are not in the cover map)
+                let cover: u64 = self.children(i).filter_map(|x| self.get_domain_id(x)).map(|x| cover_map.get(&x.get_id()).unwrap_or(&1)).sum();
+                let _ = cover_map.insert(partial.get_id(), cover);
                 
                 let _ = cache.insert(cache_key, partial);
             }
