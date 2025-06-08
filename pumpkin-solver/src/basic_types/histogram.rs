@@ -2,35 +2,30 @@ use std::fmt::{self, Display};
 
 
 #[derive(Copy, Clone, Debug)]
-pub struct Histogram {
-    buckets: [u64; 128],
+pub(crate) struct Histogram {
+    buckets: [u64; 2048],
 }
 
 impl Default for Histogram {
     fn default() -> Self {
         Self {
-            buckets: [0u64; 128],
+            buckets: [0u64; 2048],
         }
     }
 }
 
 impl Histogram {
-    /// Create a new, empty histogram.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Adds a value to the bucket at the specified index (0–127).
-    pub fn add(&mut self, index: u64, value: u64) {
-        if index < 128 {
+    /// Adds a value to the bucket at the specified index (0–2047).
+    pub(crate) fn add(&mut self, index: u64, value: u64) {
+        if index < 2048 {
             self.buckets[index as usize] += value;
         } else {
-            eprintln!("Index out of bounds: {} (must be < 128)", index);
+            eprintln!("Index out of bounds: {} (must be < 2048)", index);
         }
     }
 
     /// Returns a tab-separated list of non-zero buckets: "index,count"
-    pub fn format(&self) -> String {
+    pub(crate) fn format(&self) -> String {
         self.buckets
             .iter()
             .enumerate()

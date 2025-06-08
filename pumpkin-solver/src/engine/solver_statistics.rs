@@ -53,6 +53,8 @@ create_statistics_struct!(
         histogram_on_learning: Histogram,
         histogram_on_propagation: Histogram,
         
+        decisions_on_extended: u64,
+        
         propagated_on_learned_clause: u64,
         
         // These are overlapping

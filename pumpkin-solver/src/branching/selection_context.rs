@@ -10,7 +10,7 @@ use crate::engine::variables::DomainGeneratorIterator;
 #[cfg(doc)]
 use crate::engine::variables::DomainId;
 use crate::engine::variables::IntegerVariable;
-use crate::engine::Assignments;
+use crate::engine::{Assignments, SolverStatistics};
 
 /// The context provided to the [`Brancher`],
 /// it allows the retrieval of domain values of variables and access to methods from a [`Random`]
@@ -19,6 +19,7 @@ use crate::engine::Assignments;
 pub struct SelectionContext<'a> {
     assignments: &'a Assignments,
     random_generator: &'a mut dyn Random,
+    pub(crate) counters: &'a mut SolverStatistics,
 }
 
 impl<'a> SelectionContext<'a> {
