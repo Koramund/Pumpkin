@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::basic_types::cumulative_literal::CumulativeLiteral;
 use crate::engine::conflict_analysis::SemanticMinimiser;
 use crate::engine::predicates::predicate::Predicate;
@@ -7,7 +8,7 @@ use crate::engine::reason::ReasonStore;
 use crate::engine::reason::StoredReason;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::variables::Literal;
-use crate::engine::EmptyDomain;
+use crate::engine::{EmptyDomain, SolverStatistics};
 use crate::engine::TrailedAssignments;
 use crate::engine::TrailedInt;
 use crate::engine::{Assignments, WatchListCP};
@@ -69,6 +70,8 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) cumulative_literals: &'a mut Vec<CumulativeLiteral>,
     pub(crate) free_literals: &'a mut Vec<Literal>,
     pub(crate) free_propagator_ids: &'a mut Vec<PropagatorId>,
+    pub(crate) counters: &'a mut SolverStatistics,
+    pub(crate) extended_literals: &'a mut HashSet<u32>,
 }
 
 impl<'a> PropagationContextMut<'a> {

@@ -1,6 +1,6 @@
 //! Houses the solver which attempts to find a solution to a Constraint Satisfaction Problem (CSP)
 //! using a Lazy Clause Generation approach.
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
 use std::num::NonZero;
 use std::time::Instant;
@@ -151,6 +151,7 @@ pub struct ConstraintSatisfactionSolver {
     pub(crate) stateful_assignments: TrailedAssignments,
     
     pub(crate) free_literals: Vec<Literal>,
+    pub(crate) extended_literals: HashSet<u32>,
     pub(crate) free_propagator_ids: Vec<PropagatorId>,
     
 }
@@ -430,6 +431,7 @@ impl ConstraintSatisfactionSolver {
             stateful_assignments: TrailedAssignments::default(),
             free_literals: vec![],
             free_propagator_ids: vec![],
+            extended_literals: HashSet::new(),
         };
 
         // As a convention, the assignments contain a dummy domain_id=0, which represents a 0-1
@@ -1018,6 +1020,7 @@ impl ConstraintSatisfactionSolver {
             &mut vec,
             &mut self.free_literals,
             &mut self.free_propagator_ids,
+            &mut self.extended_literals,
         );
 
         ConstraintSatisfactionSolver::add_asserting_nogood_to_nogood_propagator(
@@ -1424,6 +1427,7 @@ impl ConstraintSatisfactionSolver {
             for _ in 0..100_000 {
                 // Every literal requires 2 propagators
                 let literal = self.create_new_hidden_literal(None);
+                self.extended_literals.insert(literal.get_id());
                 self.free_literals.push(literal);
                 self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
                 self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));

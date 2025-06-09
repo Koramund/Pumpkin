@@ -44,4 +44,19 @@ create_statistics_struct!(
         average_backtrack_amount: CumulativeMovingAverage<u64>,
         /// The average literal-block distance (LBD) metric for newly added learned nogoods
         average_lbd: CumulativeMovingAverage<u64>,
+        /// Counts how often propagate is called for GEQ
+        secondary_propagations_geq: u64,
+        /// Counts how often propagate is called for LTMin
+        secondary_propagations_lt: u64,
+
+        /// When the cumulative literal was asserting
+        propagations_on_cumulative_literal: u64,
+        /// When the cumulative literal was present anywhere in the nogood, including asserting.
+        propagations_with_cumulative_literal: u64,
+        /// Total number of nogood propagations, to help proportionate how often we propagated with them.
+        nogood_propagations: u64,
+        /// How often does VSIDS decide on these literals.
+        decisions_on_extended: u64,
+        /// What is the chance a nogood contains such a literal.
+        chance_cumulative_literal_is_in_nogood: CumulativeMovingAverage<u64>,
 });

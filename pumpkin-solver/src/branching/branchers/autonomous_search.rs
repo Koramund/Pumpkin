@@ -12,7 +12,7 @@ use crate::containers::StorageKey;
 use crate::engine::predicates::predicate::Predicate;
 use crate::engine::Assignments;
 use crate::results::Solution;
-use crate::variables::DomainId;
+use crate::variables::{DomainId, IntegerVariable};
 use crate::DefaultBrancher;
 /// A [`Brancher`] that combines [VSIDS \[1\]](https://dl.acm.org/doi/pdf/10.1145/378239.379017)
 /// and [Solution-based phase saving \[2\]](https://people.eng.unimelb.edu.au/pstuckey/papers/lns-restarts.pdf).
@@ -233,6 +233,10 @@ impl<BackupBrancher: Brancher> Brancher for AutonomousSearch<BackupBrancher> {
             // There are variables for which we do not have a predicate, rely on the backup
             self.backup_brancher.next_decision(context)
         } else {
+            if result.is_some() {
+                let flag: bool = context.extended_literals.contains(&result.unwrap().get_domain().get_id());
+                context.counters.learned_clause_statistics.decisions_on_extended += u64::from(flag);
+            }
             result
         }
     }

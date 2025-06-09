@@ -37,6 +37,7 @@ use crate::propagators::nogoods::Nogood;
 use crate::pumpkin_assert_advanced;
 use crate::pumpkin_assert_moderate;
 use crate::pumpkin_assert_simple;
+use crate::variables::IntegerVariable;
 
 /// A propagator which propagates nogoods (i.e. a list of [`Predicate`]s which cannot all be true
 /// at the same time).
@@ -888,6 +889,21 @@ impl Propagator for NogoodPropagator {
 
 /// Functions for adding nogoods
 impl NogoodPropagator {
+
+
+    // Simply reports if the propagated nogood did contain some form of extended resolution
+    fn report_extended_resolution_on_propagation(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+        context.counters.learned_clause_statistics.nogood_propagations += 1;
+        
+        if context.extended_literals.contains(&nogood[0].get_domain().get_id()) {
+            context.counters.learned_clause_statistics.propagations_on_cumulative_literal += 1;
+        }
+        let flag: bool = nogood.iter().any(|x| context.extended_literals.contains(&x.get_domain().get_id()));
+
+        context.counters.learned_clause_statistics.propagations_with_cumulative_literal += u64::from(flag);
+    }
+    
+    
     /// Adds a nogood which has been learned during search.
     ///
     /// The first predicate should be asserting and the second predicate should contain the
@@ -898,6 +914,10 @@ impl NogoodPropagator {
         context: &mut PropagationContextMut,
         statistics: &mut SolverStatistics,
     ) {
+        let flag: bool = nogood.iter().any(|x| context.extended_literals.contains(&x.get_domain().get_id()));
+
+        context.counters.learned_clause_statistics.chance_cumulative_literal_is_in_nogood.add_term(flag.into());
+        
         // We treat unit nogoods in a special way by adding it as a permanent nogood at the
         // root-level; this is essentially the same as adding a predicate at the root level
         if nogood.len() == 1 {

@@ -71,6 +71,8 @@ for LessThanMinimumPropagator<Lhs, Var>
             return Err(Inconsistency::from(conflict))
         }
 
+        context.counters.learned_clause_statistics.secondary_propagations_lt += 1;
+
         // get the lowest LCT
         let restrictor = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.upper_bound(restrictor) <= context.upper_bound(&self.lhs) {
