@@ -477,6 +477,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod test_propagation_handler {
+    use std::collections::HashSet;
     use std::rc::Rc;
     use crate::basic_types::cumulative_literal::CumulativeExtendedType;
     use super::create_conflict_explanation;
@@ -490,7 +491,7 @@ pub(crate) mod test_propagation_handler {
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
     use crate::engine::reason::ReasonStore;
-    use crate::engine::{Assignments, WatchListCP};
+    use crate::engine::{Assignments, SolverStatistics, WatchListCP};
     use crate::engine::TrailedAssignments;
     use crate::predicate;
     use crate::predicates::Predicate;
@@ -590,6 +591,8 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut vec![],
                         &mut vec![],
+                        &mut SolverStatistics::default(),
+                        &mut HashSet::new(),
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -656,6 +659,8 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut vec![],
                         &mut vec![],
+                        &mut SolverStatistics::default(),
+                        &mut HashSet::new(),
                     ),
                     &[&profile_y, &profile_z],
                     &Rc::new(propagating_task),
@@ -709,6 +714,8 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut vec![],
                         &mut vec![],
+                        &mut SolverStatistics::default(),
+                        &mut HashSet::new(),
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -775,6 +782,8 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut vec![],
                         &mut vec![],
+                        &mut SolverStatistics::default(),
+                        &mut HashSet::new(),
                     ),
                     &[&profile_z, &profile_y],
                     &Rc::new(propagating_task),

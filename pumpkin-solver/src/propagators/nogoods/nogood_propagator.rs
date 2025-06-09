@@ -263,6 +263,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
 
+                            Self::report_extended_resolution_on_propagation(&mut context, &nogood.as_vec());
+
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
                             if let Err(e) = result {
@@ -398,7 +400,9 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is unassigned -> propagate the predicate to false
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
-
+                            
+                            Self::report_extended_resolution_on_propagation(&mut context, &nogood.as_vec());
+                            
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
                             if let Err(e) = result {
@@ -592,6 +596,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is unassigned -> propagate the predicate to false
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
+                            
+                            Self::report_extended_resolution_on_propagation(&mut context, &nogood.as_vec());
 
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
@@ -729,6 +735,8 @@ impl Propagator for NogoodPropagator {
                             // nogood[0] is unassigned -> propagate the predicate to false
                             // nogood[0] is assigned true -> conflict.
                             let reason = Reason::DynamicLazy(nogood_id.id as u64);
+
+                            Self::report_extended_resolution_on_propagation(&mut context, &nogood.as_vec());
 
                             let result = context.post_predicate(!nogood[0], reason);
                             // If the propagation lead to a conflict.
@@ -892,7 +900,7 @@ impl NogoodPropagator {
 
 
     // Simply reports if the propagated nogood did contain some form of extended resolution
-    fn report_extended_resolution_on_propagation(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
+    pub(crate) fn report_extended_resolution_on_propagation(context: &mut PropagationContextMut, nogood: &Vec<Predicate>) {
         context.counters.learned_clause_statistics.nogood_propagations += 1;
         
         if context.extended_literals.contains(&nogood[0].get_domain().get_id()) {
@@ -1495,11 +1503,13 @@ impl NogoodPropagator {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::NogoodPropagator;
     use crate::conjunction;
     use crate::engine::propagation::store::PropagatorStore;
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
+    use crate::engine::SolverStatistics;
     use crate::engine::test_solver::TestSolver;
     use crate::predicate;
 
@@ -1532,6 +1542,8 @@ mod tests {
             let mut vec = vec![];
             let mut vec2 = vec![];
             let mut vec3 = vec![];
+            let mut counters = SolverStatistics::default();
+            let mut extended_literals = HashSet::new();
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
@@ -1543,6 +1555,8 @@ mod tests {
                 &mut vec,
                 &mut vec2,
                 &mut vec3,
+                &mut counters,
+                &mut extended_literals,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)
@@ -1581,6 +1595,8 @@ mod tests {
             let mut vec = vec![];
             let mut vec2 = vec![];
             let mut vec3 = vec![];
+            let mut counters = SolverStatistics::default();
+            let mut extended_literals = HashSet::new();
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
@@ -1592,6 +1608,8 @@ mod tests {
                 &mut vec,
                 &mut vec2,
                 &mut vec3,
+                &mut counters,
+                &mut extended_literals,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)

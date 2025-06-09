@@ -1430,7 +1430,7 @@ impl ConstraintSatisfactionSolver {
             for _ in 0..100_000 {
                 // Every literal requires 2 propagators
                 let literal = self.create_new_hidden_literal(None);
-                self.extended_literals.insert(literal.get_id());
+                let _ = self.extended_literals.insert(literal.get_id());
                 self.free_literals.push(literal);
                 self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));
                 self.free_propagator_ids.push(self.propagators.alloc(Box::new(DummyPropagator::new()), None));

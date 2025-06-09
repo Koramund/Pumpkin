@@ -83,11 +83,10 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
             Some(conflict) => {return Err(Inconsistency::from(PropositionalConjunction::from(conflict)))}
         }
 
-        context.counters.learned_clause_statistics.secondary_propagations_geq += 1;
-
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
             let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x >= context.lower_bound(restrictor)]).collect();
+            context.counters.learned_clause_statistics.secondary_propagations_geq += 1;
             context.set_lower_bound(
                 &self.lhs,
                 context.lower_bound(restrictor),

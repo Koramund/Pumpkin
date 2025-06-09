@@ -71,13 +71,12 @@ for LessThanMinimumPropagator<Lhs, Var>
             return Err(Inconsistency::from(conflict))
         }
 
-        context.counters.learned_clause_statistics.secondary_propagations_lt += 1;
-
         // get the lowest LCT
         let restrictor = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.upper_bound(restrictor) <= context.upper_bound(&self.lhs) {
             let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x <= context.upper_bound(x)]).chain(
                 std::iter::once(predicate![self.lhs >= context.lower_bound(&self.lhs)])).collect();
+            context.counters.learned_clause_statistics.secondary_propagations_lt += 1;
             context.set_upper_bound(
                 &self.lhs,
                 context.upper_bound(restrictor) - 1,

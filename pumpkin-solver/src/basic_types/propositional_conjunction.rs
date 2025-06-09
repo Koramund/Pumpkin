@@ -43,6 +43,10 @@ impl PropositionalConjunction {
         self.predicates_in_conjunction.iter()
     }
 
+    pub fn as_vec(&self) -> Vec<Predicate> {
+        self.predicates_in_conjunction.clone()
+    }
+
     pub fn as_slice(&self) -> &[Predicate] {
         self.predicates_in_conjunction.as_slice()
     }

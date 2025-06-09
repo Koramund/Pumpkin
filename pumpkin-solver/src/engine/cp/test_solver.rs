@@ -8,7 +8,7 @@ use super::propagation::EnqueueDecision;
 use super::propagation::ExplanationContext;
 use super::propagation::PropagatorInitialisationContext;
 use super::TrailedAssignments;
-use crate::basic_types::Inconsistency;
+use crate::basic_types::{HashSet, Inconsistency};
 use crate::engine::conflict_analysis::SemanticMinimiser;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
 use crate::engine::predicates::predicate::Predicate;
@@ -21,7 +21,7 @@ use crate::engine::reason::ReasonStore;
 use crate::engine::variables::DomainId;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::variables::Literal;
-use crate::engine::Assignments;
+use crate::engine::{Assignments, SolverStatistics};
 use crate::engine::DomainEvents;
 use crate::engine::EmptyDomain;
 use crate::engine::WatchListCP;
@@ -84,6 +84,8 @@ impl TestSolver {
         let mut vec = vec![];
         let mut vec2 = vec![];
         let mut vec3 = vec![];
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -95,6 +97,8 @@ impl TestSolver {
             &mut vec,
             &mut vec2,
             &mut vec3,
+            &mut counters,
+            &mut extended_literals,
         );
         self.propagator_store[id].propagate(context)?;
 
@@ -117,6 +121,8 @@ impl TestSolver {
         let mut vec = vec![];
         let mut vec2 = vec![];
         let mut vec3 = vec![];
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -128,6 +134,8 @@ impl TestSolver {
             &mut vec,
             &mut vec2,
             &mut vec3,
+            &mut counters,
+            &mut extended_literals,
         );
 
         Ok(id)
@@ -225,6 +233,8 @@ impl TestSolver {
         let mut vec = vec![];
         let mut vec2 = vec![];
         let mut vec3 = vec![];
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -236,6 +246,8 @@ impl TestSolver {
             &mut vec,
             &mut vec2,
             &mut vec3,
+            &mut counters,
+            &mut extended_literals,
         );
         self.propagator_store[propagator].propagate(context)
     }
@@ -252,6 +264,8 @@ impl TestSolver {
                 let mut vec2 = vec![];
                 let mut vec3 = vec![];
                 // Specify the life-times to be able to retrieve the trail entries
+                let mut counters = SolverStatistics::default();
+                let mut extended_literals = HashSet::new();
                 let context = PropagationContextMut::new(
                     &mut self.stateful_assignments,
                     &mut self.assignments,
@@ -263,6 +277,8 @@ impl TestSolver {
                     &mut vec,                
                     &mut vec2,
                     &mut vec3,
+                    &mut counters,
+                    &mut extended_literals,
                 );
                 self.propagator_store[propagator].propagate(context)?;
                 self.notify_propagator(propagator);

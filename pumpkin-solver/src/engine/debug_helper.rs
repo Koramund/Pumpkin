@@ -11,9 +11,9 @@ use super::predicates::predicate::Predicate;
 use super::propagation::store::PropagatorStore;
 use super::propagation::ExplanationContext;
 use super::reason::ReasonStore;
-use super::{ConstraintSatisfactionSolver, WatchListCP};
+use super::{ConstraintSatisfactionSolver, SolverStatistics, WatchListCP};
 use super::TrailedAssignments;
-use crate::basic_types::Inconsistency;
+use crate::basic_types::{HashSet, Inconsistency};
 use crate::basic_types::PropositionalConjunction;
 use crate::engine::cp::Assignments;
 use crate::engine::propagation::PropagationContextMut;
@@ -82,6 +82,8 @@ impl DebugHelper {
             let mut vec = vec![];
             let mut vec2 = vec![];
             let mut vec3 = vec![];
+            let mut counters = SolverStatistics::default();
+            let mut extended_literals = HashSet::new();
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
@@ -93,6 +95,8 @@ impl DebugHelper {
                 &mut vec,
                 &mut vec2,
                 &mut vec3,
+                &mut counters,
+                &mut extended_literals,
             );
             let propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -251,6 +255,8 @@ impl DebugHelper {
                 let mut vec = vec![];
                 let mut vec2 = vec![];
                 let mut vec3 = vec![];
+                let mut counters = SolverStatistics::default();
+                let mut extended_literals = HashSet::new();
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
@@ -262,6 +268,8 @@ impl DebugHelper {
                     &mut vec,
                     &mut vec2,
                     &mut vec3,
+                    &mut counters,
+                    &mut extended_literals,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -372,6 +380,8 @@ impl DebugHelper {
                     let mut vec = vec![];
                     let mut vec2 = vec![];
                     let mut vec3 = vec![];
+                    let mut counters = SolverStatistics::default();
+                    let mut extended_literals = HashSet::new();
                     let context = PropagationContextMut::new(
                         &mut stateful_assignments_clone,
                         &mut assignments_clone,
@@ -383,6 +393,8 @@ impl DebugHelper {
                         &mut vec,
                         &mut vec2,
                         &mut vec3,
+                        &mut counters,
+                        &mut extended_literals,
                     );
                     let debug_propagation_status_cp =
                         propagator.debug_propagate_from_scratch(context);
@@ -446,6 +458,8 @@ impl DebugHelper {
             let mut vec = vec![];
             let mut vec2 = vec![];
             let mut vec3 = vec![];
+            let mut counters = SolverStatistics::default();
+            let mut extended_literals = HashSet::new();
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
@@ -457,6 +471,8 @@ impl DebugHelper {
                 &mut vec,
                 &mut vec2,
                 &mut vec3,
+                &mut counters,
+                &mut extended_literals,
             );
             let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
             assert!(
@@ -518,6 +534,8 @@ impl DebugHelper {
                 let mut vec = vec![];
                 let mut vec2 = vec![];
                 let mut vec3 = vec![];
+                let mut counters = SolverStatistics::default();
+                let mut extended_literals = HashSet::new();
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
@@ -529,6 +547,8 @@ impl DebugHelper {
                     &mut vec,
                     &mut vec2,
                     &mut vec3,
+                    &mut counters,
+                    &mut extended_literals,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
