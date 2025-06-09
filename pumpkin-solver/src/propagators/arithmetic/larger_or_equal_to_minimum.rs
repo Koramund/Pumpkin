@@ -113,7 +113,7 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
             Some(
                 // TODO test 2 versions to see if we might be able to get away with lower_bound(x).
                 // TODO this restrictor instead of x, might be detrimental.
-                self.array.iter().map(|x| predicate![x >= context.lower_bound(x)]).chain(
+                self.array.iter().map(|x| predicate![x >= context.lower_bound(restrictor)]).chain(
                     std::iter::once(predicate![self.lhs <= context.upper_bound(&self.lhs)])).collect()
                 )
         } else {
