@@ -924,6 +924,9 @@ impl NogoodPropagator {
         let flag: bool = nogood.iter().any(|x| context.extended_literals.contains(&x.get_domain().get_id()));
 
         context.counters.learned_clause_statistics.chance_cumulative_literal_is_in_nogood.add_term(flag.into());
+        if flag {
+            context.counters.learned_clause_statistics.avg_cumulative_literal_per_nogood.add_term(nogood.iter().map(|x| if context.extended_literals.contains(&x.get_domain().get_id()) {1} else {0}).sum());
+        }
         
         // We treat unit nogoods in a special way by adding it as a permanent nogood at the
         // root-level; this is essentially the same as adding a predicate at the root level

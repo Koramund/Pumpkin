@@ -59,4 +59,6 @@ create_statistics_struct!(
         decisions_on_extended: u64,
         /// What is the chance a nogood contains such a literal.
         chance_cumulative_literal_is_in_nogood: CumulativeMovingAverage<u64>,
+        /// If a nogood contains a cumulative literal, on average how many literals are present?
+        avg_cumulative_literal_per_nogood: CumulativeMovingAverage<u64>,
 });
