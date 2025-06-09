@@ -38,11 +38,12 @@ impl ValueSelector<DomainId> for InDomainSplitRandom {
 
 #[cfg(test)]
 mod tests {
-
+    use std::collections::HashSet;
     use crate::basic_types::tests::TestRandom;
     use crate::branching::value_selection::InDomainSplitRandom;
     use crate::branching::value_selection::ValueSelector;
     use crate::branching::SelectionContext;
+    use crate::engine::SolverStatistics;
     use crate::predicate;
 
     #[test]
@@ -53,7 +54,9 @@ mod tests {
             bools: vec![true],
             ..Default::default()
         };
-        let mut context = SelectionContext::new(&assignments, &mut test_random);
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
+        let mut context = SelectionContext::new(&assignments, &mut test_random, &mut counters, &mut extended_literals);
         let domain_ids = context.get_domains().collect::<Vec<_>>();
 
         let mut selector = InDomainSplitRandom;

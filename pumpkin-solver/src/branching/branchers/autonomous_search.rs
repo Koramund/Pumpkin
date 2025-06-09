@@ -314,11 +314,12 @@ impl<BackupBrancher: Brancher> Brancher for AutonomousSearch<BackupBrancher> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::AutonomousSearch;
     use crate::basic_types::tests::TestRandom;
     use crate::branching::Brancher;
     use crate::branching::SelectionContext;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, SolverStatistics};
     use crate::predicate;
     use crate::results::SolutionReference;
 
@@ -348,6 +349,8 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert_eq!(decision, Some(predicate));
 
@@ -369,6 +372,8 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert!(decision.is_none());
         assert!(brancher.dormant_predicates.contains(&predicate));
@@ -378,6 +383,8 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert!(decision.is_none());
         assert!(brancher.dormant_predicates.contains(&predicate));
@@ -388,6 +395,8 @@ mod tests {
         let decision = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert_eq!(decision, Some(predicate));
         assert!(!brancher.dormant_predicates.contains(&predicate));
@@ -408,6 +417,8 @@ mod tests {
                 bools: vec![false],
                 weighted_choice: |_| unreachable!(),
             },
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
 
         assert_eq!(result, Some(predicate!(x <= 2)));
@@ -449,6 +460,8 @@ mod tests {
         let result = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert_eq!(result, Some(predicate!(x >= 5)));
     }

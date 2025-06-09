@@ -52,8 +52,10 @@ impl VariableSelector<Literal> for InputOrder<Literal> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::*;
     use crate::basic_types::tests::TestRandom;
+    use crate::engine::SolverStatistics;
 
     #[test]
     fn test_correctly_selected() {
@@ -63,7 +65,9 @@ mod tests {
         let mut strategy = InputOrder::new(&integer_variables);
 
         {
-            let mut context = SelectionContext::new(&assignments, &mut test_rng);
+            let mut counters = SolverStatistics::default();
+            let mut extended_literals = HashSet::new();
+            let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters, &mut extended_literals);
 
             let selected = strategy.select_variable(&mut context);
             assert!(selected.is_some());
@@ -72,7 +76,9 @@ mod tests {
 
         let _ = assignments.make_assignment(integer_variables[0], 0, None);
 
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters, &mut extended_literals);
 
         let selected = strategy.select_variable(&mut context);
         assert!(selected.is_some());
@@ -83,7 +89,9 @@ mod tests {
     fn fixed_variables_are_not_selected() {
         let assignments = SelectionContext::create_for_testing(vec![(10, 10), (20, 20)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters, &mut extended_literals);
         let integer_variables = context.get_domains().collect::<Vec<_>>();
 
         let mut strategy = InputOrder::new(&integer_variables);

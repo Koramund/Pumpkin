@@ -873,6 +873,8 @@ impl ConstraintSatisfactionSolver {
         let context = &mut SelectionContext::new(
             &self.assignments,
             &mut self.internal_parameters.random_generator,
+            &mut self.solver_statistics,
+            &mut self.extended_literals,
         );
 
         // If there is a next decision, make the decision.

@@ -1,6 +1,7 @@
+use std::collections::HashSet;
 use std::fmt::Debug;
 
-use crate::basic_types::{HashSet, Random};
+use crate::basic_types::Random;
 #[cfg(doc)]
 use crate::branching::Brancher;
 use crate::engine::predicates::predicate::Predicate;

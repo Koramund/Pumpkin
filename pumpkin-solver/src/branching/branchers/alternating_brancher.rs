@@ -223,12 +223,13 @@ impl<OtherBrancher: Brancher> Brancher for AlternatingBrancher<OtherBrancher> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::AlternatingBrancher;
     use super::AlternatingStrategy;
     use crate::basic_types::tests::TestRandom;
     use crate::branching::Brancher;
     use crate::branching::SelectionContext;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, SolverStatistics};
     use crate::results::SolutionReference;
     use crate::Solver;
 
@@ -311,6 +312,8 @@ mod tests {
         let _ = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert!(brancher.is_using_default_brancher);
 
@@ -318,6 +321,8 @@ mod tests {
         let _ = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
         assert!(!brancher.is_using_default_brancher);
 
@@ -325,6 +330,8 @@ mod tests {
         let _ = brancher.next_decision(&mut SelectionContext::new(
             &assignments,
             &mut TestRandom::default(),
+            &mut SolverStatistics::default(),
+            &mut HashSet::new(),
         ));
 
         assert!(brancher.is_using_default_brancher);

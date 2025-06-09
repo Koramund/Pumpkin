@@ -25,17 +25,21 @@ impl ValueSelector<DomainId> for OutDomainMin {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use crate::basic_types::tests::TestRandom;
     use crate::branching::value_selection::OutDomainMin;
     use crate::branching::value_selection::ValueSelector;
     use crate::branching::SelectionContext;
+    use crate::engine::SolverStatistics;
     use crate::predicate;
 
     #[test]
     fn test_returns_correct_literal() {
         let assignments = SelectionContext::create_for_testing(vec![(0, 10)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut extended_literals = HashSet::new();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters, &mut extended_literals);
         let domain_ids = context.get_domains().collect::<Vec<_>>();
 
         let mut selector = OutDomainMin;
