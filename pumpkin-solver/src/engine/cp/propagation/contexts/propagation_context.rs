@@ -86,6 +86,8 @@ impl<'a> PropagationContextMut<'a> {
         cumulative_literals: &'a mut Vec<CumulativeLiteral>,
         free_literals: &'a mut Vec<Literal>,
         free_propagator_ids: &'a mut Vec<PropagatorId>,
+        counters: &'a mut SolverStatistics,
+        extended_literals: &'a mut HashSet<u32>,
     ) -> Self {
         PropagationContextMut {
             stateful_assignments,
@@ -99,6 +101,8 @@ impl<'a> PropagationContextMut<'a> {
             cumulative_literals,
             free_literals,
             free_propagator_ids,
+            counters,
+            extended_literals,
         }
     }
     

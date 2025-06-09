@@ -1022,6 +1022,7 @@ impl ConstraintSatisfactionSolver {
             &mut vec,
             &mut self.free_literals,
             &mut self.free_propagator_ids,
+            &mut self.solver_statistics,
             &mut self.extended_literals,
         );
 
@@ -1029,7 +1030,6 @@ impl ConstraintSatisfactionSolver {
             &mut self.propagators[Self::get_nogood_propagator_id()],
             learned_nogood.predicates,
             &mut context,
-            &mut self.solver_statistics,
         )
     }
 
@@ -1037,11 +1037,10 @@ impl ConstraintSatisfactionSolver {
         nogood_propagator: &mut dyn Propagator,
         nogood: Vec<Predicate>,
         context: &mut PropagationContextMut,
-        statistics: &mut SolverStatistics,
     ) {
         match nogood_propagator.downcast_mut::<NogoodPropagator>() {
             Some(nogood_propagator) => {
-                nogood_propagator.add_asserting_nogood(nogood, context, statistics)
+                nogood_propagator.add_asserting_nogood(nogood, context)
             }
             None => panic!("Provided propagator should be the nogood propagator"),
         }
@@ -1216,6 +1215,8 @@ impl ConstraintSatisfactionSolver {
                     &mut cumulative_literals,
                     &mut self.free_literals,
                     &mut self.free_propagator_ids,
+                    &mut self.solver_statistics,
+                    &mut self.extended_literals,
                 );
                 propagator.propagate(context)
             };
@@ -1525,6 +1526,8 @@ impl ConstraintSatisfactionSolver {
             &mut vec,
             &mut self.free_literals,
             &mut self.free_propagator_ids,
+            &mut self.solver_statistics,
+            &mut self.extended_literals,
         );
         let nogood_propagator_id = Self::get_nogood_propagator_id();
         ConstraintSatisfactionSolver::add_nogood_to_nogood_propagator(

@@ -912,7 +912,6 @@ impl NogoodPropagator {
         &mut self,
         nogood: Vec<Predicate>,
         context: &mut PropagationContextMut,
-        statistics: &mut SolverStatistics,
     ) {
         let flag: bool = nogood.iter().any(|x| context.extended_literals.contains(&x.get_domain().get_id()));
 
@@ -936,7 +935,7 @@ impl NogoodPropagator {
             .lbd_helper
             .compute_lbd(&nogood.as_slice()[1..], context.assignments());
 
-        statistics
+        context.counters
             .learned_clause_statistics
             .average_lbd
             .add_term(lbd as u64);
