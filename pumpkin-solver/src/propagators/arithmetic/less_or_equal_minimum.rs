@@ -1,6 +1,6 @@
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::{Inconsistency, PropositionalConjunction};
-use crate::{conjunction, predicate};
+use crate::conjunction;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
@@ -74,13 +74,11 @@ for LessThanMinimumPropagator<Lhs, Var>
         // get the lowest LCT
         let restrictor = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.upper_bound(restrictor) <= context.upper_bound(&self.lhs) {
-            let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x <= context.upper_bound(x)]).chain(
-                std::iter::once(predicate![self.lhs >= context.lower_bound(&self.lhs)])).collect();
             context.counters.learned_clause_statistics.secondary_propagations_lt += 1;
             context.set_upper_bound(
                 &self.lhs,
                 context.upper_bound(restrictor) - 1,
-                reason,
+                conjunction!([restrictor <= context.upper_bound(restrictor)])
             )?
         }
         Ok(())
@@ -100,10 +98,7 @@ for LessThanMinimumPropagator<Lhs, Var>
     ) -> Option<PropositionalConjunction> {
         let task_with_earliest_lct = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.lower_bound(&self.lhs) >= context.upper_bound(task_with_earliest_lct)  {
-            Some(
-                self.array.iter().map(|x| predicate![x <= context.upper_bound(x)]).chain(
-                    std::iter::once(predicate![self.lhs >= context.lower_bound(&self.lhs)])).collect()
-            )
+            Some(conjunction!([self.lhs >= context.lower_bound(&self.lhs)] & [task_with_earliest_lct <= context.upper_bound(&self.lhs)]))
         } else {
             None
         }
