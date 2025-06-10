@@ -31,7 +31,6 @@ use crate::engine::variables::DomainId;
 use crate::engine::ConstraintSatisfactionSolver;
 use crate::engine::EventSink;
 use crate::engine::IntDomainEvent;
-use crate::engine::SolverStatistics;
 use crate::predicate;
 use crate::propagators::nogoods::Nogood;
 use crate::pumpkin_assert_advanced;
@@ -1508,15 +1507,15 @@ impl NogoodPropagator {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use super::NogoodPropagator;
     use crate::conjunction;
     use crate::engine::propagation::store::PropagatorStore;
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
-    use crate::engine::SolverStatistics;
     use crate::engine::test_solver::TestSolver;
+    use crate::engine::SolverStatistics;
     use crate::predicate;
+    use std::collections::HashSet;
 
     fn downcast_to_nogood_propagator(
         nogood_propagator: PropagatorId,
