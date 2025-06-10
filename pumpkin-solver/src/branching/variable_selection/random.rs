@@ -4,7 +4,6 @@ use crate::branching::SelectionContext;
 use crate::containers::SparseSet;
 use crate::containers::StorageKey;
 use crate::variables::DomainId;
-use rand::prelude::IteratorRandom;
 
 /// A [`VariableSelector`] which selects a random unfixed variable.
 #[derive(Debug)]
@@ -27,8 +26,9 @@ impl VariableSelector<DomainId> for RandomSelector {
     fn select_variable(&mut self, context: &mut SelectionContext) -> Option<DomainId> {
         if self.variables.is_empty() {
             return None;
-        }
-        self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).choose_stable(&mut rand::thread_rng()).cloned()
+        }        
+        let valid_variables = self.variables.iter().filter(|x| x.decidable && !context.is_integer_fixed(**x)).collect::<Vec<_>>();
+        Some(**valid_variables.get(context.random().generate_usize_in_range(0..valid_variables.len())).unwrap())
     }
 
     fn on_unassign_integer(&mut self, variable: DomainId, _value: i32) {
@@ -46,12 +46,12 @@ impl VariableSelector<DomainId> for RandomSelector {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use crate::basic_types::tests::TestRandom;
     use crate::branching::variable_selection::RandomSelector;
     use crate::branching::variable_selection::VariableSelector;
     use crate::branching::SelectionContext;
     use crate::engine::SolverStatistics;
+    use std::collections::HashSet;
 
     #[test]
     fn test_selects_randomly() {
