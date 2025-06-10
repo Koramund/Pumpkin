@@ -93,6 +93,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
             context.with_reification(*literal);
             let result = new_propagators.prop1.propagator.propagate_directly(context);
 
+            context.cumulative_literals.push(new_propagators);
 
             // Note that the assert may fail if it is equals.
             // I am attributing this to the fact that a profile may appear where at some point an extra unnecessary task overlaps. However, we would still propagate to the end of the profile.
@@ -101,7 +102,6 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
                 Err(_) => {panic!("This propagation function is not allowed to raise a custom conflict.")}
                 _ => {}
             }
-            context.cumulative_literals.push(new_propagators)
             
         }  else {
             context.assign_literal(literal, true, explanation)?;
@@ -191,14 +191,14 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
             context.propagator_id = new_propagators.id1;
             context.with_reification(*literal);
             let result = new_propagators.prop1.propagator.propagate_directly(context);
+
+            context.cumulative_literals.push(new_propagators);
             
             match result {
                 Err(Inconsistency::EmptyDomain) => {return Err(EmptyDomain)}
                 Err(_) => {panic!("This propagation function is not allowed to raise a custom conflict.")}
                 _ => {}
             }
-
-            context.cumulative_literals.push(new_propagators)
         } else {
             context.assign_literal(literal, true, explanation)?;
             
