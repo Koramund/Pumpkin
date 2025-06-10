@@ -119,6 +119,7 @@ impl Assignments {
         let id = DomainId {
             id: self.num_domains(),
             decidable: false,
+            required: false,
         };
 
         self.trail.push(ConstraintProgrammingTrailEntry {
@@ -164,6 +165,7 @@ impl Assignments {
         let id = DomainId {
             id: self.num_domains(),
             decidable: true,
+            required: true,
         };
 
         self.trail.push(ConstraintProgrammingTrailEntry {
@@ -455,6 +457,7 @@ impl Assignments {
             let domain_id = DomainId {
                 id: domain.0 as u32,
                 decidable: true,
+                required: true
             };
             descriptions.append(&mut self.get_domain_description(domain_id));
         }

@@ -18,14 +18,15 @@ use crate::engine::Watchers;
 pub struct DomainId {
     pub id: u32,
     pub decidable: bool,
+    pub required: bool,
 }
 
 impl DomainId {
     pub fn new(id: u32) -> Self {
-        DomainId { id, decidable: true }
+        DomainId { id, decidable: true, required: true }
     }
     
-    pub fn new_hidden(id: u32, decidable:bool) -> Self { DomainId { id, decidable } }
+    pub fn new_hidden(id: u32, decidable:bool) -> Self { DomainId { id, decidable, required: false } }
 }
 
 impl Eq for DomainId {}
@@ -146,7 +147,7 @@ impl StorageKey for DomainId {
     }
 
     fn create_from_index(index: usize) -> Self {
-        DomainId { id: index as u32, decidable: true }
+        DomainId { id: index as u32, decidable: true, required: true }
     }
 }
 

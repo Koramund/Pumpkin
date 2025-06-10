@@ -226,6 +226,12 @@ impl<BackupSelector> AutonomousSearch<BackupSelector> {
 
 impl<BackupBrancher: Brancher> Brancher for AutonomousSearch<BackupBrancher> {
     fn next_decision(&mut self, context: &mut SelectionContext) -> Option<Predicate> {
+        // why bother at all otherwise?
+        // Also note that the below function will return true even if some extended variables are not set.
+        // This then also automatically bypasses the backup brancher.
+        if context.are_all_variables_assigned() {
+            return None
+        }
         let result = self
             .next_candidate_predicate(context)
             .map(|predicate| self.determine_polarity(predicate));

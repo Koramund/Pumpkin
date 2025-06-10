@@ -232,8 +232,8 @@ mod tests {
 
     #[test]
     fn order_is_ignored_for_equality() {
-        let x = DomainId { id: 0, decidable: true };
-        let y = DomainId { id: 1, decidable: true };
+        let x = DomainId { id: 0, decidable: true, required: true };
+        let y = DomainId { id: 1, decidable: true, required: true };
 
         let conj1 = conjunction!([x >= 5] & [y <= 7]);
         let conj2 = conjunction!([y <= 7] & [x >= 5]);
@@ -245,8 +245,8 @@ mod tests {
     fn conjunction_macro_test() {
         assert_eq!(conjunction!(), PropositionalConjunction::default());
 
-        let x = DomainId { id: 0, decidable: true };
-        let y = DomainId { id: 1, decidable: true };
+        let x = DomainId { id: 0, decidable: true, required: true };
+        let y = DomainId { id: 1, decidable: true, required: true };
         let conjunction =
             PropositionalConjunction::from(vec![predicate![x >= 5], predicate![y == 1]]);
         assert_eq!(conjunction!([x >= 5] & [y == 1]), conjunction);
@@ -258,7 +258,7 @@ mod tests {
             x: DomainId,
         }
         let w = Wrapper {
-            x: DomainId { id: 0, decidable: true },
+            x: DomainId { id: 0, decidable: true, required: true },
         };
 
         let conjunction = PropositionalConjunction::from(vec![predicate![w.x == 1]]);
