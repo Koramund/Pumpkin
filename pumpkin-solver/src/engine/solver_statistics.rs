@@ -48,6 +48,9 @@ create_statistics_struct!(
         secondary_propagations_geq: u64,
         /// Counts how often propagate is called for LTMin
         secondary_propagations_lt: u64,
+        
+        /// Unique cumulative literals utilized
+        unique_literals: u64,
 
         /// When the cumulative literal was asserting
         propagations_on_cumulative_literal: u64,
