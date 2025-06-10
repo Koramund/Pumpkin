@@ -96,7 +96,7 @@ impl PropagatorInitialisationContext<'_> {
         domain_events: DomainEvents,
         local_id: LocalId,
     ) -> Var {
-        if PropagationContext::new(self.assignments).is_fixed(&var) {
+        if self.assignments.get_decision_level() == 0 && PropagationContext::new(self.assignments).is_fixed(&var) {
             return var;
         }
         let propagator_var = PropagatorVarId {
