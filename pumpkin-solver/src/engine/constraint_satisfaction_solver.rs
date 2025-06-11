@@ -1154,6 +1154,8 @@ impl ConstraintSatisfactionSolver {
         assignments: &mut Assignments,
         reason_store: &mut ReasonStore,
         propagators: &mut PropagatorStore,
+        extended_literals: &mut HashSet<u32>,
+        counters: &mut SolverStatistics
     ) -> PropositionalConjunction {
         // The empty domain happened after posting the last predicate on the trail.
         // The reason for this empty domain is computed as the reason for the bounds before the last
@@ -1167,6 +1169,9 @@ impl ConstraintSatisfactionSolver {
             "Cannot cause an empty domain using a decision."
         );
         let conflict_domain = entry.predicate.get_domain();
+        if extended_literals.contains(&conflict_domain.id) {
+            counters.learned_clause_statistics.conflicts_by_invalid_literal += 1;
+        }
         assert!(
             entry.old_lower_bound != assignments.get_lower_bound(conflict_domain)
                 || entry.old_upper_bound != assignments.get_upper_bound(conflict_domain),
@@ -1242,6 +1247,8 @@ impl ConstraintSatisfactionSolver {
                                 &mut self.assignments,
                                 &mut self.reason_store,
                                 &mut self.propagators,
+                                &mut self.extended_literals,
+                                &mut self.solver_statistics,
                             );
 
                         // TODO: As a temporary solution, we remove the last trail element.

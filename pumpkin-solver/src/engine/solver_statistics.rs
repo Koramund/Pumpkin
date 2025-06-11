@@ -49,6 +49,9 @@ create_statistics_struct!(
         /// Counts how often propagate is called for LTMin
         secondary_propagations_lt: u64,
         
+        /// Counts how often a conflict was raised because of the increased detection method
+        conflicts_by_invalid_literal: u64,
+        
         /// Unique cumulative literals utilized
         unique_literals: u64,
 
