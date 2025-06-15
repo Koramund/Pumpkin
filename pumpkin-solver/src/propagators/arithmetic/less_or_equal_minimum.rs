@@ -98,7 +98,7 @@ for LessThanMinimumPropagator<Lhs, Var>
     ) -> Option<PropositionalConjunction> {
         let task_with_earliest_lct = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.lower_bound(&self.lhs) >= context.upper_bound(task_with_earliest_lct)  {
-            Some(conjunction!([self.lhs >= context.lower_bound(&self.lhs)] & [task_with_earliest_lct <= context.upper_bound(&self.lhs)]))
+            Some(conjunction!([self.lhs >= context.lower_bound(&self.lhs)] & [task_with_earliest_lct <= context.upper_bound(task_with_earliest_lct)]))
         } else {
             None
         }
