@@ -853,6 +853,7 @@ impl ConstraintSatisfactionSolver {
         let context = &mut SelectionContext::new(
             &self.assignments,
             &mut self.internal_parameters.random_generator,
+            &mut self.solver_statistics,
         );
 
         // If there is a next decision, make the decision.
@@ -993,13 +994,13 @@ impl ConstraintSatisfactionSolver {
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             Self::get_nogood_propagator_id(),
+            &mut self.solver_statistics,
         );
 
         ConstraintSatisfactionSolver::add_asserting_nogood_to_nogood_propagator(
             &mut self.propagators[Self::get_nogood_propagator_id()],
             learned_nogood.predicates,
             &mut context,
-            &mut self.solver_statistics,
         )
     }
 
@@ -1007,11 +1008,10 @@ impl ConstraintSatisfactionSolver {
         nogood_propagator: &mut dyn Propagator,
         nogood: Vec<Predicate>,
         context: &mut PropagationContextMut,
-        statistics: &mut SolverStatistics,
     ) {
         match nogood_propagator.downcast_mut::<NogoodPropagator>() {
             Some(nogood_propagator) => {
-                nogood_propagator.add_asserting_nogood(nogood, context, statistics)
+                nogood_propagator.add_asserting_nogood(nogood, context)
             }
             None => panic!("Provided propagator should be the nogood propagator"),
         }
@@ -1180,6 +1180,7 @@ impl ConstraintSatisfactionSolver {
                     &mut self.reason_store,
                     &mut self.semantic_minimiser,
                     propagator_id,
+                    &mut self.solver_statistics,
                 );
                 propagator.propagate(context)
             };
@@ -1426,6 +1427,7 @@ impl ConstraintSatisfactionSolver {
             &mut self.reason_store,
             &mut self.semantic_minimiser,
             Self::get_nogood_propagator_id(),
+            &mut self.solver_statistics,
         );
         let nogood_propagator_id = Self::get_nogood_propagator_id();
 

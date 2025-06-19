@@ -434,7 +434,7 @@ pub(crate) mod test_propagation_handler {
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
     use crate::engine::reason::ReasonStore;
-    use crate::engine::Assignments;
+    use crate::engine::{Assignments, SolverStatistics};
     use crate::engine::TrailedAssignments;
     use crate::predicate;
     use crate::predicates::Predicate;
@@ -527,6 +527,7 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut SolverStatistics::default(),
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -588,6 +589,7 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut SolverStatistics::default(),
                     ),
                     &[&profile_y, &profile_z],
                     &Rc::new(propagating_task),
@@ -636,6 +638,7 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut SolverStatistics::default(),
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -697,6 +700,7 @@ pub(crate) mod test_propagation_handler {
                         &mut self.reason_store,
                         &mut SemanticMinimiser::default(),
                         PropagatorId(0),
+                        &mut SolverStatistics::default(),
                     ),
                     &[&profile_z, &profile_y],
                     &Rc::new(propagating_task),

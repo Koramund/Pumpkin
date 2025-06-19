@@ -8,6 +8,7 @@ use crate::engine::Assignments;
 use crate::engine::EmptyDomain;
 use crate::engine::IntDomainEvent;
 use crate::engine::Watchers;
+use crate::variables::DomainId;
 
 /// THIS IS AN INTERFACE
 ///
@@ -21,6 +22,17 @@ pub trait IntegerVariable:
 
     /// Returns the scale of the underneath variable
     fn get_scale(&self) -> i32;
+    
+    /// Returns the offset of the variable
+    fn get_offset(&self) -> i32;
+    
+    fn get_id(&self) -> u32;
+
+    fn get_determining_props(&self) -> (i32, i32, u32) {
+        (self.get_scale(), self.get_offset(), self.get_id())
+    }
+    
+    fn get_domain_id(&self) -> DomainId;
     
     /// Get the lower bound of the variable.
     fn lower_bound(&self, assignment: &Assignments) -> i32;

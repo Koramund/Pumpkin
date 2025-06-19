@@ -34,13 +34,15 @@ mod tests {
     use crate::branching::value_selection::InDomainMedian;
     use crate::branching::value_selection::ValueSelector;
     use crate::branching::SelectionContext;
+    use crate::engine::SolverStatistics;
     use crate::predicate;
 
     #[test]
     fn test_returns_correct_literal() {
         let assignments = SelectionContext::create_for_testing(vec![(0, 10)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
         let domain_ids = context.get_domains().collect::<Vec<_>>();
 
         let mut selector = InDomainMedian;
@@ -59,7 +61,8 @@ mod tests {
 
         let _ = assignments.remove_value_from_domain(domain_ids[0], 9, None);
 
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
         let selected_predicate = selector.select_value(&mut context, domain_ids[0]);
         assert_eq!(selected_predicate, predicate!(domain_ids[0] == 5))
@@ -75,7 +78,8 @@ mod tests {
 
         let _ = assignments.remove_value_from_domain(domain_ids[0], 5, None);
 
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
         let selected_predicate = selector.select_value(&mut context, domain_ids[0]);
         assert_eq!(selected_predicate, predicate!(domain_ids[0] == 6))

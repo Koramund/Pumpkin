@@ -43,12 +43,14 @@ impl<Var: IntegerVariable + Copy> ValueSelector<Var> for ReverseInDomainSplit {
 mod tests {
     use super::*;
     use crate::basic_types::tests::TestRandom;
+    use crate::engine::SolverStatistics;
 
     #[test]
     fn test_returns_correct_literal() {
         let assignments = SelectionContext::create_for_testing(vec![(0, 10)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
         let domain_ids = context.get_domains().collect::<Vec<_>>();
 
         let mut selector = ReverseInDomainSplit;
@@ -62,7 +64,8 @@ mod tests {
     fn test_domain_of_size_two() {
         let assignments = SelectionContext::create_for_testing(vec![(1, 2)]);
         let mut test_rng = TestRandom::default();
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
         let domain_ids = context.get_domains().collect::<Vec<_>>();
 
         let mut selector = ReverseInDomainSplit;

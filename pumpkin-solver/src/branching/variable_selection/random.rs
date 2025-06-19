@@ -69,6 +69,7 @@ mod tests {
     use crate::branching::variable_selection::RandomSelector;
     use crate::branching::variable_selection::VariableSelector;
     use crate::branching::SelectionContext;
+    use crate::engine::SolverStatistics;
 
     #[test]
     fn test_selects_randomly() {
@@ -80,7 +81,8 @@ mod tests {
         let integer_variables = assignments.get_domains().collect::<Vec<_>>();
         let mut strategy = RandomSelector::new(assignments.get_domains());
 
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
         let selected = strategy.select_variable(&mut context);
         assert!(selected.is_some());
@@ -97,7 +99,8 @@ mod tests {
         let integer_variables = assignments.get_domains().collect::<Vec<_>>();
         let mut strategy = RandomSelector::new(assignments.get_domains());
 
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
         let selected = strategy.select_variable(&mut context);
         assert!(selected.is_some());
@@ -113,7 +116,8 @@ mod tests {
         };
         let mut strategy = RandomSelector::new(assignments.get_domains());
 
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
         let selected = strategy.select_variable(&mut context);
         assert!(selected.is_none());
@@ -130,7 +134,8 @@ mod tests {
         let mut strategy = RandomSelector::new(assignments.get_domains());
 
         {
-            let mut context = SelectionContext::new(&assignments, &mut test_rng);
+            let mut counters = SolverStatistics::default();
+            let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
             let selected = strategy.select_variable(&mut context);
             assert!(selected.is_some());
@@ -141,7 +146,8 @@ mod tests {
         let _ = assignments.tighten_lower_bound(integer_variables[1], 7, None);
 
         {
-            let mut context = SelectionContext::new(&assignments, &mut test_rng);
+            let mut counters = SolverStatistics::default();
+            let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
 
             let selected = strategy.select_variable(&mut context);
             assert!(selected.is_none());
@@ -149,7 +155,8 @@ mod tests {
 
         let _ = assignments.synchronise(0, 0, false);
         strategy.on_unassign_integer(integer_variables[1], 7);
-        let mut context = SelectionContext::new(&assignments, &mut test_rng);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_rng, &mut counters);
         let selected = strategy.select_variable(&mut context);
         assert!(selected.is_some());
         assert_eq!(selected.unwrap(), integer_variables[1]);

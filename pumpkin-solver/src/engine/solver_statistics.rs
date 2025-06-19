@@ -1,3 +1,4 @@
+use crate::basic_types::histogram::Histogram;
 use crate::basic_types::moving_averages::CumulativeMovingAverage;
 use crate::create_statistics_struct;
 
@@ -25,6 +26,8 @@ create_statistics_struct!(
         num_propagations: u64,
         /// The amount of time which is spent in the solver
         time_spent_in_solver: u64,
+        /// The number of decisions that were made on extended predicates
+        decisions_on_extended: u64,
 });
 
 create_statistics_struct!(
@@ -44,4 +47,26 @@ create_statistics_struct!(
         average_backtrack_amount: CumulativeMovingAverage<u64>,
         /// The average literal-block distance (LBD) metric for newly added learned nogoods
         average_lbd: CumulativeMovingAverage<u64>,
+        /// The number of clauses which contain overlap
+        chance_contains_overlap: CumulativeMovingAverage<u64>,
+        chance_contains_extended_resolution: CumulativeMovingAverage<u64>,
+
+        //histogram representing the cover of variables entering the nogoods
+        histogram_on_learning: Histogram,
+        histogram_on_propagation: Histogram,
+
+        propagated_on_learned_clause: u64,
+        
+        // These are overlapping
+        propagated_with_extended: CumulativeMovingAverage<u64>,
+        propagated_with_duplicate: CumulativeMovingAverage<u64>,
+        
+        // These are also overlapping
+        average_extended_clause_size: CumulativeMovingAverage<u64>,
+        average_duplicate_clause_size: CumulativeMovingAverage<u64>,
+        
+        total_predicates: u64,
+        overlapping_predicates: u64,
+        /// The recorded percentage of overlap for each clause
+        average_overlap: CumulativeMovingAverage<f64>,
 });

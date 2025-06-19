@@ -28,13 +28,14 @@ mod tests {
     use crate::engine::propagation::PropagationContextMut;
     use crate::engine::propagation::PropagatorId;
     use crate::engine::reason::ReasonStore;
-    use crate::engine::TrailedAssignments;
+    use crate::engine::{SolverStatistics, TrailedAssignments};
 
     #[test]
     fn test_no_update_reason_store_if_no_update_lower_bound() {
         let mut assignments = Assignments::default();
         let mut stateful_assignments = TrailedAssignments::default();
         let domain = assignments.grow(5, 10);
+        let mut counters = SolverStatistics::default();
 
         let mut reason_store = ReasonStore::default();
         assert_eq!(reason_store.len(), 0);
@@ -46,6 +47,7 @@ mod tests {
                 &mut reason_store,
                 &mut semantic_miniser,
                 PropagatorId(0),
+                &mut counters
             );
 
             let result = context.set_lower_bound(&domain, 2, conjunction!());
@@ -59,6 +61,7 @@ mod tests {
         let mut assignments = Assignments::default();
         let mut stateful_assignments = TrailedAssignments::default();
         let domain = assignments.grow(5, 10);
+        let mut counters = SolverStatistics::default();
 
         let mut reason_store = ReasonStore::default();
 
@@ -71,6 +74,7 @@ mod tests {
                 &mut reason_store,
                 &mut semantic_miniser,
                 PropagatorId(0),
+                &mut counters
             );
 
             let result = context.set_upper_bound(&domain, 15, conjunction!());
@@ -84,6 +88,7 @@ mod tests {
         let mut assignments = Assignments::default();
         let mut stateful_assignments = TrailedAssignments::default();
         let domain = assignments.grow(5, 10);
+        let mut counters = SolverStatistics::default();
 
         let mut reason_store = ReasonStore::default();
 
@@ -96,6 +101,7 @@ mod tests {
                 &mut reason_store,
                 &mut semantic_miniser,
                 PropagatorId(0),
+                &mut counters
             );
 
             let result = context.remove(&domain, 15, conjunction!());

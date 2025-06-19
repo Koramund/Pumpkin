@@ -63,6 +63,7 @@ mod tests {
     use crate::branching::value_selection::InDomainRandom;
     use crate::branching::value_selection::ValueSelector;
     use crate::branching::SelectionContext;
+    use crate::engine::SolverStatistics;
     use crate::predicate;
 
     #[test]
@@ -72,7 +73,8 @@ mod tests {
             usizes: vec![3],
             ..Default::default()
         };
-        let mut context = SelectionContext::new(&assignments, &mut test_random);
+        let mut counters = SolverStatistics::default();
+        let mut context = SelectionContext::new(&assignments, &mut test_random, &mut counters);
         let domain_ids = context.get_domains().collect::<Vec<_>>();
 
         let mut selector = InDomainRandom;

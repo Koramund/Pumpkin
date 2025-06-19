@@ -6,7 +6,7 @@ use crate::engine::reason::ReasonStore;
 use crate::engine::reason::StoredReason;
 use crate::engine::variables::IntegerVariable;
 use crate::engine::variables::Literal;
-use crate::engine::Assignments;
+use crate::engine::{Assignments, SolverStatistics};
 use crate::engine::EmptyDomain;
 use crate::engine::TrailedAssignments;
 use crate::engine::TrailedInt;
@@ -61,6 +61,7 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) reason_store: &'a mut ReasonStore,
     pub(crate) propagator_id: PropagatorId,
     pub(crate) semantic_minimiser: &'a mut SemanticMinimiser,
+    pub(crate) counters: &'a mut SolverStatistics,
     reification_literal: Option<Literal>,
 }
 
@@ -71,6 +72,7 @@ impl<'a> PropagationContextMut<'a> {
         reason_store: &'a mut ReasonStore,
         semantic_minimiser: &'a mut SemanticMinimiser,
         propagator_id: PropagatorId,
+        counters: &'a mut SolverStatistics,
     ) -> Self {
         PropagationContextMut {
             stateful_assignments,
@@ -78,6 +80,7 @@ impl<'a> PropagationContextMut<'a> {
             reason_store,
             propagator_id,
             semantic_minimiser,
+            counters,
             reification_literal: None,
         }
     }

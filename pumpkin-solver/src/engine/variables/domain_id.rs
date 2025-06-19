@@ -30,6 +30,18 @@ impl IntegerVariable for DomainId {
     fn get_scale(&self) -> i32 {
         1
     }
+
+    fn get_offset(&self) -> i32 { 0 }
+    
+    fn get_id(&self) -> u32 { self.id }
+
+    fn get_domain_id(&self) -> DomainId {
+        *self
+    }
+
+    fn get_determining_props(&self) -> (i32, i32, u32) {
+        (self.get_scale(), self.get_offset(), self.id)
+    }
     
     fn lower_bound(&self, assignment: &Assignments) -> i32 {
         assignment.get_lower_bound(*self)
