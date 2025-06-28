@@ -49,6 +49,11 @@ create_statistics_struct!(
         /// Counts how often propagate is called for LTMin
         secondary_propagations_lt: u64,
         
+        time_table_propagations: u64,
+        profile_size: CumulativeMovingAverage<u64>,
+        
+        secondary_profile_size: CumulativeMovingAverage<u64>,
+        
         /// Counts how often a conflict was raised because of the increased detection method
         conflicts_by_invalid_literal: u64,
         

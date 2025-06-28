@@ -1,5 +1,6 @@
 use crate::basic_types::PropositionalConjunction;
 use crate::basic_types::{Inconsistency, PropagationStatusCP};
+use crate::basic_types::moving_averages::MovingAverage;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
 use crate::engine::opaque_domain_event::OpaqueDomainEvent;
@@ -31,6 +32,7 @@ impl<Lhs: IntegerVariable + 'static, Var: IntegerVariable + 'static> LargerOrEqu
     pub(crate) fn propagate_directly(&self, context: &mut PropagationContextMut) -> PropagationStatusCP {
         let restrictor = self.array.iter().min_by_key(|x| context.lower_bound(*x)).unwrap();
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
+            context.counters.learned_clause_statistics.time_table_propagations += 1;
             let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x >= context.lower_bound(restrictor)]).collect();
             context.set_lower_bound(
                 &self.lhs,
@@ -87,6 +89,7 @@ for LargerOrEqualMinimumPropagator<Lhs, Var>
         if context.lower_bound(restrictor) > context.lower_bound(&self.lhs) {
             let reason: PropositionalConjunction = self.array.iter().map(|x| predicate![x >= context.lower_bound(restrictor)]).collect();
             context.counters.learned_clause_statistics.secondary_propagations_geq += 1;
+            context.counters.learned_clause_statistics.secondary_profile_size.add_term(self.array.len() as u64);
             context.set_lower_bound(
                 &self.lhs,
                 context.lower_bound(restrictor),

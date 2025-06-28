@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::ops::Not;
 use std::rc::Rc;
 use std::sync::{LazyLock, Mutex};
+use crate::basic_types::moving_averages::MovingAverage;
 
 /// TODO create a new solver parameter that can be used to denote which underlying system extended resolution should utilise.
 
@@ -60,6 +61,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
         // pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
 
         let cur_id = context.propagator_id;
+        context.counters.learned_clause_statistics.profile_size.add_term(profile.profile_tasks.len() as u64);
         if is_first {
             context.counters.learned_clause_statistics.unique_literals += 1;
             pumpkin_assert_simple!(!context.is_literal_fixed(literal), "When given a meaning a literal should not have had a value from before");
@@ -157,6 +159,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
 
         // TODO If the literal was set to true then something has gone wrong as we propagate optimally. (delete this assertion in the non optimal case where propagate directly goes to a bound)
         // pumpkin_assert_simple!(!context.is_literal_true(literal), "The literal was already set to true, are your propagators strong enough?");
+        context.counters.learned_clause_statistics.profile_size.add_term(profile.profile_tasks.len() as u64);
 
         let cur_id = context.propagator_id;
         if is_first {

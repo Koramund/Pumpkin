@@ -1,5 +1,6 @@
 use crate::basic_types::PropagationStatusCP;
 use crate::basic_types::{Inconsistency, PropositionalConjunction};
+use crate::basic_types::moving_averages::MovingAverage;
 use crate::conjunction;
 use crate::engine::cp::propagation::ReadDomains;
 use crate::engine::domain_events::DomainEvents;
@@ -75,6 +76,7 @@ for LessThanMinimumPropagator<Lhs, Var>
         let restrictor = self.array.iter().min_by_key(|x| context.upper_bound(*x)).unwrap();
         if context.upper_bound(restrictor) <= context.upper_bound(&self.lhs) {
             context.counters.learned_clause_statistics.secondary_propagations_lt += 1;
+            context.counters.learned_clause_statistics.secondary_profile_size.add_term(self.array.len() as u64);
             context.set_upper_bound(
                 &self.lhs,
                 context.upper_bound(restrictor) - 1,
