@@ -50,7 +50,12 @@ create_statistics_struct!(
         secondary_propagations_lt: u64,
         
         time_table_propagations: u64,
+        
         profile_size: CumulativeMovingAverage<u64>,
+        
+        duplicate_on_learning: u64,
+        
+        duplicate_on_propagation: u64,
         
         secondary_profile_size: CumulativeMovingAverage<u64>,
         

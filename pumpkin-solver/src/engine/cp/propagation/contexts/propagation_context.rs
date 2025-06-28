@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use crate::basic_types::cumulative_literal::CumulativeLiteral;
+use crate::basic_types::HashMap;
 use crate::engine::conflict_analysis::SemanticMinimiser;
 use crate::engine::predicates::predicate::Predicate;
 use crate::engine::propagation::{PropagatorId, PropagatorInitialisationContext};
@@ -72,6 +73,7 @@ pub(crate) struct PropagationContextMut<'a> {
     pub(crate) free_propagator_ids: &'a mut Vec<PropagatorId>,
     pub(crate) counters: &'a mut SolverStatistics,
     pub(crate) extended_literals: &'a mut HashSet<u32>,
+    pub(crate) literal_to_profile: &'a mut HashMap<u32, Vec<u32>>
 }
 
 impl<'a> PropagationContextMut<'a> {
@@ -88,6 +90,7 @@ impl<'a> PropagationContextMut<'a> {
         free_propagator_ids: &'a mut Vec<PropagatorId>,
         counters: &'a mut SolverStatistics,
         extended_literals: &'a mut HashSet<u32>,
+        literal_to_profile: &'a mut HashMap<u32, Vec<u32>>,
     ) -> Self {
         PropagationContextMut {
             stateful_assignments,
@@ -103,6 +106,7 @@ impl<'a> PropagationContextMut<'a> {
             free_propagator_ids,
             counters,
             extended_literals,
+            literal_to_profile,
         }
     }
     

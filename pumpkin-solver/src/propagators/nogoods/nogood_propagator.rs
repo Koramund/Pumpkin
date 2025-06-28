@@ -908,6 +908,18 @@ impl NogoodPropagator {
             context.counters.learned_clause_statistics.propagations_on_cumulative_literal += 1;
         }
         let flag: bool = nogood.iter().any(|x| context.extended_literals.contains(&x.get_domain().get_id()));
+        
+        if flag {
+            'duplication: for x in nogood.iter().map(|x| x.get_domain().get_id()).filter(|x| context.literal_to_profile.contains_key(x)) {
+                for profile in context.literal_to_profile.get(&x).unwrap() {
+                    let sum: usize = nogood.iter().filter_map(|x| if x.get_domain().get_id() == *profile {Some(1)} else {None}).sum();
+                    if sum == 2 {
+                        context.counters.learned_clause_statistics.duplicate_on_propagation += 1;
+                        break 'duplication;
+                    }
+                }
+            }
+        }
 
         context.counters.learned_clause_statistics.propagations_with_cumulative_literal += u64::from(flag);
     }
@@ -927,6 +939,16 @@ impl NogoodPropagator {
         context.counters.learned_clause_statistics.chance_cumulative_literal_is_in_nogood.add_term(flag.into());
         if flag {
             context.counters.learned_clause_statistics.avg_cumulative_literal_per_nogood.add_term(nogood.iter().map(|x| if context.extended_literals.contains(&x.get_domain().get_id()) {1} else {0}).sum());
+            
+            'duplication: for x in nogood.iter().map(|x| x.get_domain().get_id()).filter(|x| context.literal_to_profile.contains_key(x)) {
+                for profile in context.literal_to_profile.get(&x).unwrap() {
+                    let sum: usize = nogood.iter().filter_map(|x| if x.get_domain().get_id() == *profile {Some(1)} else {None}).sum();
+                    if sum == 2 {
+                        context.counters.learned_clause_statistics.duplicate_on_learning += 1;
+                        break 'duplication;
+                    }
+                }
+            }
         }
         
         // We treat unit nogoods in a special way by adding it as a permanent nogood at the
