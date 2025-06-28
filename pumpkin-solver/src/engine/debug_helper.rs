@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::iter::once;
@@ -84,6 +85,7 @@ impl DebugHelper {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map= HashMap::new();
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
@@ -97,6 +99,7 @@ impl DebugHelper {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
             let propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -257,6 +260,7 @@ impl DebugHelper {
                 let mut vec3 = vec![];
                 let mut counters = SolverStatistics::default();
                 let mut extended_literals = HashSet::new();
+                let mut lit_map= HashMap::new();
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
@@ -270,6 +274,7 @@ impl DebugHelper {
                     &mut vec3,
                     &mut counters,
                     &mut extended_literals,
+                    &mut lit_map,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 
@@ -382,6 +387,7 @@ impl DebugHelper {
                     let mut vec3 = vec![];
                     let mut counters = SolverStatistics::default();
                     let mut extended_literals = HashSet::new();
+                    let mut lit_map= HashMap::new();
                     let context = PropagationContextMut::new(
                         &mut stateful_assignments_clone,
                         &mut assignments_clone,
@@ -395,6 +401,7 @@ impl DebugHelper {
                         &mut vec3,
                         &mut counters,
                         &mut extended_literals,
+                        &mut lit_map,
                     );
                     let debug_propagation_status_cp =
                         propagator.debug_propagate_from_scratch(context);
@@ -460,6 +467,7 @@ impl DebugHelper {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map= HashMap::new();
             let context = PropagationContextMut::new(
                 &mut stateful_assignments_clone,
                 &mut assignments_clone,
@@ -473,6 +481,7 @@ impl DebugHelper {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
             let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
             assert!(
@@ -536,6 +545,7 @@ impl DebugHelper {
                 let mut vec3 = vec![];
                 let mut counters = SolverStatistics::default();
                 let mut extended_literals = HashSet::new();
+                let mut lit_map= HashMap::new();
                 let context = PropagationContextMut::new(
                     &mut stateful_assignments_clone,
                     &mut assignments_clone,
@@ -549,6 +559,7 @@ impl DebugHelper {
                     &mut vec3,
                     &mut counters,
                     &mut extended_literals,
+                    &mut lit_map,
                 );
                 let debug_propagation_status_cp = propagator.debug_propagate_from_scratch(context);
 

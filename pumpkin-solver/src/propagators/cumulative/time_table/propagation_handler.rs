@@ -477,7 +477,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod test_propagation_handler {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
     use std::rc::Rc;
     use crate::basic_types::cumulative_literal::CumulativeExtendedType;
     use super::create_conflict_explanation;
@@ -593,6 +593,7 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut SolverStatistics::default(),
                         &mut HashSet::new(),
+                        &mut HashMap::new(),
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -661,6 +662,7 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut SolverStatistics::default(),
                         &mut HashSet::new(),
+                        &mut HashMap::new(),
                     ),
                     &[&profile_y, &profile_z],
                     &Rc::new(propagating_task),
@@ -716,6 +718,7 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut SolverStatistics::default(),
                         &mut HashSet::new(),
+                        &mut HashMap::new(),
                     ),
                     &profile,
                     &Rc::new(propagating_task),
@@ -784,6 +787,7 @@ pub(crate) mod test_propagation_handler {
                         &mut vec![],
                         &mut SolverStatistics::default(),
                         &mut HashSet::new(),
+                        &mut HashMap::new(),
                     ),
                     &[&profile_z, &profile_y],
                     &Rc::new(propagating_task),

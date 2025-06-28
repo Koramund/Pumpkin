@@ -1,6 +1,8 @@
 #![cfg(any(test, doc))]
 //! This module exposes helpers that aid testing of CP propagators. The [`TestSolver`] allows
 //! setting up specific scenarios under which to test the various operations of a propagator.
+
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use super::propagation::store::PropagatorStore;
@@ -86,6 +88,7 @@ impl TestSolver {
         let mut vec3 = vec![];
         let mut counters = SolverStatistics::default();
         let mut extended_literals = HashSet::new();
+        let mut lit_map= HashMap::new();
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -99,6 +102,7 @@ impl TestSolver {
             &mut vec3,
             &mut counters,
             &mut extended_literals,
+            &mut lit_map,
         );
         self.propagator_store[id].propagate(context)?;
 
@@ -123,7 +127,8 @@ impl TestSolver {
         let mut vec3 = vec![];
         let mut counters = SolverStatistics::default();
         let mut extended_literals = HashSet::new();
-        let context = PropagationContextMut::new(
+        let mut lit_map= HashMap::new();
+        let _ = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
             &mut self.reason_store,
@@ -136,6 +141,7 @@ impl TestSolver {
             &mut vec3,
             &mut counters,
             &mut extended_literals,
+            &mut lit_map,
         );
 
         Ok(id)
@@ -235,6 +241,7 @@ impl TestSolver {
         let mut vec3 = vec![];
         let mut counters = SolverStatistics::default();
         let mut extended_literals = HashSet::new();
+        let mut lit_map= HashMap::new();
         let context = PropagationContextMut::new(
             &mut self.stateful_assignments,
             &mut self.assignments,
@@ -248,6 +255,7 @@ impl TestSolver {
             &mut vec3,
             &mut counters,
             &mut extended_literals,
+            &mut lit_map,
         );
         self.propagator_store[propagator].propagate(context)
     }
@@ -266,6 +274,7 @@ impl TestSolver {
                 // Specify the life-times to be able to retrieve the trail entries
                 let mut counters = SolverStatistics::default();
                 let mut extended_literals = HashSet::new();
+                let mut lit_map= HashMap::new();
                 let context = PropagationContextMut::new(
                     &mut self.stateful_assignments,
                     &mut self.assignments,
@@ -279,6 +288,7 @@ impl TestSolver {
                     &mut vec3,
                     &mut counters,
                     &mut extended_literals,
+                    &mut lit_map,
                 );
                 self.propagator_store[propagator].propagate(context)?;
                 self.notify_propagator(propagator);

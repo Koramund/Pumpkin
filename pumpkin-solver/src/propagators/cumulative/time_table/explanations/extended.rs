@@ -65,7 +65,7 @@ pub(crate) fn propagate_lower_bounds_with_extended_explanations<Var: IntegerVari
         context.counters.learned_clause_statistics.profile_size.add_term(profile.profile_tasks.len() as u64);
         
         if is_first {
-            context.literal_to_profile.insert(literal.get_id(), profile.profile_tasks.iter().map(|x| x.start_variable.get_id()).collect::<Vec<_>>());
+            let _ = context.literal_to_profile.insert(literal.get_id(), profile.profile_tasks.iter().map(|x| x.start_variable.get_id()).collect::<Vec<_>>());
             context.counters.learned_clause_statistics.unique_literals += 1;
             pumpkin_assert_simple!(!context.is_literal_fixed(literal), "When given a meaning a literal should not have had a value from before");
             literal.make_decidable();
@@ -166,7 +166,7 @@ pub(crate) fn propagate_upper_bounds_with_extended_explanations<Var: IntegerVari
 
         let cur_id = context.propagator_id;
         if is_first {
-            context.literal_to_profile.insert(literal.get_id(), profile.profile_tasks.iter().map(|x| x.start_variable.get_id()).collect::<Vec<_>>());
+            let _ = context.literal_to_profile.insert(literal.get_id(), profile.profile_tasks.iter().map(|x| x.start_variable.get_id()).collect::<Vec<_>>());
             context.counters.learned_clause_statistics.unique_literals += 1;
             pumpkin_assert_simple!(!context.is_literal_fixed(literal), "When given a meaning a literal should not have had a value from before");
             literal.make_decidable();

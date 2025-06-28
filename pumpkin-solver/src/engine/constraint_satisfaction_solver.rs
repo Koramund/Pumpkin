@@ -153,6 +153,7 @@ pub struct ConstraintSatisfactionSolver {
     pub(crate) free_literals: Vec<Literal>,
     pub(crate) extended_literals: HashSet<u32>,
     pub(crate) free_propagator_ids: Vec<PropagatorId>,
+    pub(crate) literal_to_profile: std::collections::HashMap<u32, Vec<u32>>
     
 }
 
@@ -432,6 +433,7 @@ impl ConstraintSatisfactionSolver {
             free_literals: vec![],
             free_propagator_ids: vec![],
             extended_literals: HashSet::new(),
+            literal_to_profile: HashMap::new(),
         };
 
         // As a convention, the assignments contain a dummy domain_id=0, which represents a 0-1
@@ -1024,6 +1026,7 @@ impl ConstraintSatisfactionSolver {
             &mut self.free_propagator_ids,
             &mut self.solver_statistics,
             &mut self.extended_literals,
+            &mut self.literal_to_profile
         );
 
         ConstraintSatisfactionSolver::add_asserting_nogood_to_nogood_propagator(
@@ -1222,6 +1225,7 @@ impl ConstraintSatisfactionSolver {
                     &mut self.free_propagator_ids,
                     &mut self.solver_statistics,
                     &mut self.extended_literals,
+                    &mut self.literal_to_profile,
                 );
                 propagator.propagate(context)
             };
@@ -1535,6 +1539,7 @@ impl ConstraintSatisfactionSolver {
             &mut self.free_propagator_ids,
             &mut self.solver_statistics,
             &mut self.extended_literals,
+            &mut self.literal_to_profile,
         );
         let nogood_propagator_id = Self::get_nogood_propagator_id();
         ConstraintSatisfactionSolver::add_nogood_to_nogood_propagator(

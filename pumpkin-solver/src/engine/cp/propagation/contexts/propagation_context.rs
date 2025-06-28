@@ -1,6 +1,5 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use crate::basic_types::cumulative_literal::CumulativeLiteral;
-use crate::basic_types::HashMap;
 use crate::engine::conflict_analysis::SemanticMinimiser;
 use crate::engine::predicates::predicate::Predicate;
 use crate::engine::propagation::{PropagatorId, PropagatorInitialisationContext};

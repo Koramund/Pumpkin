@@ -1537,7 +1537,7 @@ mod tests {
     use crate::engine::test_solver::TestSolver;
     use crate::engine::SolverStatistics;
     use crate::predicate;
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     fn downcast_to_nogood_propagator(
         nogood_propagator: PropagatorId,
@@ -1570,6 +1570,7 @@ mod tests {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map= HashMap::new();
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
@@ -1583,6 +1584,7 @@ mod tests {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)
@@ -1623,6 +1625,7 @@ mod tests {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map = HashMap::new();
             let mut context = PropagationContextMut::new(
                 &mut solver.stateful_assignments,
                 &mut solver.assignments,
@@ -1636,6 +1639,7 @@ mod tests {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
 
             downcast_to_nogood_propagator(propagator, &mut solver.propagator_store)

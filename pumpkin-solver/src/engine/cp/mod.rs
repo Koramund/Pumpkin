@@ -20,7 +20,7 @@ pub(crate) use watch_list_cp::Watchers;
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
     use assignments::Assignments;
 
     use crate::conjunction;
@@ -49,6 +49,7 @@ mod tests {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map= HashMap::new();
             let mut context = PropagationContextMut::new(
                 &mut stateful_assignments,
                 &mut assignments,
@@ -62,6 +63,7 @@ mod tests {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
 
             let result = context.set_lower_bound(&domain, 2, conjunction!());
@@ -88,6 +90,7 @@ mod tests {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map= HashMap::new();
             let mut context = PropagationContextMut::new(
                 &mut stateful_assignments,
                 &mut assignments,
@@ -101,6 +104,7 @@ mod tests {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
 
             let result = context.set_upper_bound(&domain, 15, conjunction!());
@@ -127,6 +131,7 @@ mod tests {
             let mut vec3 = vec![];
             let mut counters = SolverStatistics::default();
             let mut extended_literals = HashSet::new();
+            let mut lit_map= HashMap::new();
             let mut context = PropagationContextMut::new(
                 &mut stateful_assignments,
                 &mut assignments,
@@ -140,6 +145,7 @@ mod tests {
                 &mut vec3,
                 &mut counters,
                 &mut extended_literals,
+                &mut lit_map,
             );
 
             let result = context.remove(&domain, 15, conjunction!());
