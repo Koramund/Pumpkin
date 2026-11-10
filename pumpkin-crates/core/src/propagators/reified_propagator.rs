@@ -132,7 +132,14 @@ impl<WrappedPropagator: Propagator + Clone> Propagator for ReifiedPropagator<Wra
             self.filter_enqueue_decision(context, decision)
         } else {
             pumpkin_assert_simple!(local_id == self.reification_literal_id);
-            EnqueueDecision::Enqueue
+            // ? Should we not skip if we are being updated to false? In that case why evaluate?
+            // ToDo Could also add an auxiliary to track if the child propagator wanted to enqueue before
+            // Only enqueue if it wanted to, otherwise we have nothing to propagate so don't bother.
+            if context.evaluate_literal(self.reification_literal) == Some(true) {
+                EnqueueDecision::Enqueue
+            } else {
+                EnqueueDecision::Skip
+            }
         }
     }
 
