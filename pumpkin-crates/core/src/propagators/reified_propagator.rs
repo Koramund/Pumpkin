@@ -3,7 +3,7 @@ use pumpkin_checking::BoxedChecker;
 use pumpkin_checking::CheckerVariable;
 use pumpkin_checking::InferenceChecker;
 
-use crate::engine::PropagationStatusCP;
+use crate::engine::{PropagationStatusCP, TrailedInteger};
 use crate::engine::notifications::OpaqueDomainEvent;
 use crate::predicates::Predicate;
 use crate::propagation::DomainEvents;
@@ -81,11 +81,14 @@ where
             );
         }
 
+        let has_consequence = context.new_trailed_integer(0);
+
         let name = format!("Reified({})", propagator.name());
 
         let propagator = ReifiedPropagator {
             propagator,
             reification_literal,
+            has_consequence,
             reification_literal_id,
             name,
             reason_buffer: vec![],
@@ -110,6 +113,7 @@ where
 pub struct ReifiedPropagator<WrappedPropagator> {
     propagator: WrappedPropagator,
     reification_literal: Literal,
+    has_consequence: TrailedInteger,
     /// The formatted name of the propagator.
     name: String,
     /// The `LocalId` of the reification literal. Is guaranteed to be a larger ID than any of the
@@ -135,7 +139,7 @@ impl<WrappedPropagator: Propagator + Clone> Propagator for ReifiedPropagator<Wra
             // ? Should we not skip if we are being updated to false? In that case why evaluate?
             // ToDo Could also add an auxiliary to track if the child propagator wanted to enqueue before
             // Only enqueue if it wanted to, otherwise we have nothing to propagate so don't bother.
-            if context.evaluate_literal(self.reification_literal) == Some(true) {
+            if context.evaluate_literal(self.reification_literal) == Some(true) && context.read_trailed_integer(self.has_consequence) == 1 {
                 EnqueueDecision::Enqueue
             } else {
                 EnqueueDecision::Skip
@@ -243,6 +247,10 @@ impl<Prop: Propagator + Clone> ReifiedPropagator<Prop> {
         if decision == EnqueueDecision::Skip {
             // If the original propagator skips then we always skip
             return EnqueueDecision::Skip;
+        }
+
+        if context.read_trailed_integer(self.has_consequence) == 0 {
+            context.write_trailed_integer(self.has_consequence, 1)
         }
 
         if context.evaluate_literal(self.reification_literal) == Some(true) {
