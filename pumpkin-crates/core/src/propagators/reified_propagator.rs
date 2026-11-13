@@ -21,7 +21,7 @@ use crate::propagation::PropagatorConstructorContext;
 use crate::propagation::PropagatorSpec;
 use crate::propagation::ReadDomains;
 use crate::propagation::RuntimeCheckers;
-use crate::pumpkin_assert_simple;
+use crate::{pumpkin_assert_moderate, pumpkin_assert_simple};
 use crate::state::Conflict;
 use crate::variables::Literal;
 
@@ -139,6 +139,8 @@ impl<WrappedPropagator: Propagator + Clone> Propagator for ReifiedPropagator<Wra
             // ? Should we not skip if we are being updated to false? In that case why evaluate?
             // ToDo Could also add an auxiliary to track if the child propagator wanted to enqueue before
             // Only enqueue if it wanted to, otherwise we have nothing to propagate so don't bother.
+            // We have found that has_consequence is not the correct approach as the child propagator might not be at idempotency.
+            // Therefore the underlying propagator may have information but has_consequence has no way of checking this without some idempotency implementation.
             if context.evaluate_literal(self.reification_literal) == Some(true) && context.read_trailed_integer(self.has_consequence) == 1 {
                 EnqueueDecision::Enqueue
             } else {
@@ -246,6 +248,7 @@ impl<Prop: Propagator + Clone> ReifiedPropagator<Prop> {
     ) -> EnqueueDecision {
         if decision == EnqueueDecision::Skip {
             // If the original propagator skips then we always skip
+            pumpkin_assert_moderate!(self.propagator.detect_inconsistency(context.domains()).is_none(), "Skipped while underlying propagator is inconsistent");
             return EnqueueDecision::Skip;
         }
 
